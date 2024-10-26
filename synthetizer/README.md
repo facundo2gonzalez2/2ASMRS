@@ -1,4 +1,4 @@
-# Synthetizer:
+# Synthesizer:
 
 Download the .zip file containing the libtorch (PyTorch C++ API) source and unzip in external folder
 
