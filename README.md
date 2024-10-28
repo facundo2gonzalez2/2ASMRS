@@ -1,4 +1,4 @@
-# Audio Autoencoder for Sound Morphing in Realtime Synthetizer
+# Audio Autoencoder for Sound Morphing in Realtime Synthesizer
 
 # Install
 
@@ -23,7 +23,7 @@ tensorboard --logdir=logs
 
 [Colab](https://colab.research.google.com/drive/1VMalSDqbO-idkTdtX47v7qRcLDioZ5GT#scrollTo=4zlUqBjwMCeu)
 
-# Synthetizer:
+# Synthesizer:
 
 ## Building:
 
