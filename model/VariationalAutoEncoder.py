@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 import numpy as np
 from audio_utils import spectrogram2audio
-from utils import train_val_split_no_overlap#, eps
+from utils import train_val_split_no_overlap  # , eps
 import torch
 from sklearn.model_selection import train_test_split
 from torch import nn
@@ -72,12 +72,10 @@ class Decoder(nn.Module):
 
 
 class VariationalAutoEncoder(pl.LightningModule):
-    def __init__(self, encoder_layers, decoder_layers, latent_dim, lr=1e-3, beta=1.0):
+    def __init__(self, encoder_layers, decoder_layers, latent_dim):
         super().__init__()
         self.encoder = VAEEncoder(encoder_layers, latent_dim)
         self.decoder = Decoder((latent_dim,) + tuple(decoder_layers))
-        self.learning_rate = lr
-        self.beta = beta
 
     def forward(self, x):
         mu, logvar = self.encoder(x)
@@ -91,15 +89,14 @@ class VariationalAutoEncoder(pl.LightningModule):
         # KL divergence
         kl_loss = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
         return recon_loss + self.beta * kl_loss, recon_loss, kl_loss
-    
+
     # def loss_fn2(self, x, x_hat, mu, logvar):
     #     # Supongamos que x y x_hat son espectrogramas de magnitud
     #     recon_loss = torch.mean(torch.abs(x - x_hat))  # L1 suele sonar mejor que MSE
     #
     #     kl_loss = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
-        
-    #     return recon_loss + beta * kl_loss, recon_loss, kl_loss
 
+    #     return recon_loss + beta * kl_loss, recon_loss, kl_loss
 
     def training_step(self, batch, batch_idx):
         x, _ = batch
@@ -157,15 +154,29 @@ class VariationalAutoEncoder(pl.LightningModule):
             x_hat, mu, logvar = self(specgram)
         return x_hat
 
+    def log_hyperparameters(self, **kwargs):
+        print(kwargs)
+
+        for k, v in kwargs.items():
+            self.hparams[k] = v
+        self.hparams["parameters"] = sum(p.numel() for p in self.parameters())
+        self.save_hyperparameters(ignore=["checkpoint_path"])
+
     def train_model(
         self,
+        learning_rate,
+        beta,
         epochs=120,
         batch_size=512,
         log_path="tb_logs_vae",
-        run_name="vae_model",
+        run_name="example_vae",
         accelerator="cpu",
         use_early_stopping=True,
     ):
+        self.run_name = run_name
+        self.learning_rate = learning_rate
+        self.beta = beta
+
         # DataLoaders
         dataset = TensorDataset(
             torch.tensor(self.X_train).float(), torch.tensor(self.X_train).float()
@@ -178,18 +189,15 @@ class VariationalAutoEncoder(pl.LightningModule):
         val_dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=2)
 
         logger = TensorBoardLogger(log_path, name=run_name)
+        metric_tracker = MetricTracker()
 
-        callbacks = []
+        early_stop_callback = EarlyStopping(
+            monitor="val_loss", min_delta=1e-6, patience=100, verbose=True, mode="min"
+        )
+
+        callbacks = [metric_tracker]
         if use_early_stopping:
-            callbacks.append(
-                EarlyStopping(
-                    monitor="val_loss",
-                    min_delta=1e-6,
-                    patience=50,
-                    verbose=True,
-                    mode="min",
-                )
-            )
+            callbacks.append(early_stop_callback)
 
         trainer = pl.Trainer(
             max_epochs=epochs,
@@ -202,4 +210,41 @@ class VariationalAutoEncoder(pl.LightningModule):
         trainer.fit(
             self, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader
         )
-        return trainer
+        return trainer, metric_tracker
+
+    def export_decoder(self):
+        hps = self.hparams
+
+        with torch.no_grad():
+            mu, logvar = self.encoder(self.X)
+            Z = mu.cpu().numpy()
+
+        rangeZ = np.ceil(np.abs(Z).max(0))
+        decoder = self.decoder
+
+        output_path = Path("exported_models_vae", f"{self.run_name}.pt")
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        decoder.to("cpu").eval()
+        example = torch.zeros(1, hps["encoder_layers"][-1])
+        print("Tracing decoder")
+        traced_script_module = torch.jit.trace(decoder, example)
+        traced_script_module.save(output_path)  # type: ignore
+
+        data = {
+            "parameters": {
+                "latent_dim": hps["encoder_layers"][-1],
+                "sClip": hps["db_min_norm"],
+                "sr": hps["target_sampling_rate"],
+                "win_length": hps["win_length"],
+                "xMax": hps["Xmax"],
+                "zRange": [{"max": int(v), "min": -int(v)} for v in rangeZ],
+            },
+            "model_name": f"{self.run_name}.pt",
+            "ztrack": Z.tolist(),
+        }
+
+        output_path = Path("exported_models_vae", f"{self.run_name}.json")
+
+        with open(output_path, "w") as fp:
+            json.dump(data, fp)

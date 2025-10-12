@@ -18,17 +18,18 @@ def train(
     hop_length_samples=512,
     win_length_samples=2048,
     encoder_layers=(1024, 512, 256, 128, 64, 32, 16, 8, 4),
-    seed=42,
+    # seed=42,
     db_min_norm=-60,
     spec_in_db=True,
     normalize_each_audio=False,
     validation_size=0.05,
-    learning_rate=0.0001,
-    epochs=5000,
+    learning_rate=0.001,
+    epochs=2000,
     batch_size=128,
-    loss="MAE+MSE",
-    log_path="logs",
-    run_name="example",
+    # loss="MAE+MSE",
+    beta=0.01,
+    log_path="logs_vae",
+    run_name="example_vae",
     accelerator="cpu",
     checkpoint_path=None,
 ):
@@ -58,9 +59,7 @@ def train(
     encoder_layers = (win_length // 2 + 1,) + encoder_layers
     decoder_layers = encoder_layers[::-1][1:]
 
-    vae = VariationalAutoEncoder(
-        encoder_layers, decoder_layers, latent_dim=4, lr=learning_rate, beta=0.01
-    )
+    vae = VariationalAutoEncoder(encoder_layers, decoder_layers, latent_dim=4)
 
     vae.load_data(X, y, Xmax, db_min_norm=db_min_norm, spec_in_db=spec_in_db)
     vae.split_data(validation_size=validation_size)
@@ -71,7 +70,8 @@ def train(
         "decoder_layers": decoder_layers,
         "win_length": win_length,
         "hop_length": hop_length,
-        "loss": loss,
+        "loss": "MAE + KL",
+        "beta": beta,
         "learning_rate": learning_rate,
         "epochs": epochs,
         "batch_size": batch_size,
@@ -82,17 +82,19 @@ def train(
         "Xmax": Xmax,
     }
 
-    # ae.log_hyperparameters(**hps)
-    trainer = vae.train_model(
+    vae.log_hyperparameters(**hps)
+    trainer, metrics_tracker = vae.train_model(
         epochs=epochs,
         batch_size=batch_size,
+        learning_rate=learning_rate,
+        beta=beta,
     )
 
-    # pd.DataFrame(trainer.logged_metrics).astype(float).to_csv(
-    #     Path(trainer.log_dir, "metrics_history.csv")
-    # )
+    pd.DataFrame(metrics_tracker.collection).astype(float).to_csv(
+        Path(trainer.log_dir, "metrics_history_vae.csv")
+    )
 
-    # vae.export_decoder()
+    vae.export_decoder()
 
     predicted_specgram = vae.predict(X) * Xmax
 

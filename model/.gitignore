@@ -3,4 +3,5 @@ __pycache__/
 logs/
 data/
 exported_models/
+exported_models_vae/
 tb_logs_vae/
