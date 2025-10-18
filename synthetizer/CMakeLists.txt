@@ -55,7 +55,9 @@ set(SourceFiles
     Source/Autoencoder.h
     Source/Main.cpp
     Source/MainComponent.cpp
-    Source/MainComponent.h)
+    Source/MainComponent.h
+    Source/ModelInterpolator.cpp
+    Source/ModelInterpolator.h)
 target_sources("${PROJECT_NAME}" PRIVATE ${SourceFiles})
 
 if(NOT CMAKE_BUILD_TYPE)

@@ -7,6 +7,7 @@
 #include <vector>
 #include <filesystem>
 #include "Autoencoder.h"
+#include "ModelInterpolator.h"
 
 //==============================================================================
 /*
@@ -49,8 +50,12 @@ private:
     std::vector<std::vector<float>> mSlidersMemory;
     std::vector<juce::TextButton *> mTextButtons;
     juce::TextButton openButton;
+    juce::TextButton loadModelAButton;
+    juce::TextButton loadModelBButton;
+    juce::TextButton enableInterpolationButton;
     juce::Slider xMaxSlider;
     juce::Slider sClipSlider;
+    juce::Slider interpolationSlider;
 
     juce::ArrowButton *leftArrow = new juce::ArrowButton("left arrow", 0.5, juce::Colour());
     juce::ArrowButton *rightArrow = new juce::ArrowButton("right arrow", 0, juce::Colour());
@@ -62,6 +67,12 @@ private:
     //Autoencoder *mAutoencoder;
 
     std::vector<Autoencoder *> models;
+    
+    // Model interpolation
+    std::unique_ptr<ModelInterpolator> modelInterpolator;
+    bool isInterpolationMode = false;
+    std::string modelAPath;
+    std::string modelBPath;
 
 
     //==============================================================================

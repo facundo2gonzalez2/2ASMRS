@@ -18,6 +18,71 @@ MainComponent::MainComponent()
     openButton.setButtonText("Open...");
     openButton.onClick = [this]
     { openButtonClicked(); };
+    
+    // Model A button
+    loadModelAButton.setButtonText("Load Model A");
+    loadModelAButton.onClick = [this]
+    { 
+        chooser = std::make_unique<juce::FileChooser>("Select Model A (TorchScript .pt file)...", juce::File{});
+        auto chooserFlags = juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles;
+        chooser->launchAsync(chooserFlags, [this](const juce::FileChooser &fc){
+            auto file = fc.getResult();
+            if (file != juce::File{}) {
+                modelAPath = file.getFullPathName().toStdString();
+                DBG("[MAINCOMPONENT] Model A loaded: " << modelAPath);
+                loadModelAButton.setColour(juce::TextButton::buttonColourId, juce::Colours::green);
+
+                models.push_back(new Autoencoder(file.getFullPathName().toStdString()));
+                if (!modelBPath.empty()) {
+                    enableInterpolationButton.setEnabled(true);
+                    createSliders();
+                    resetSliders();
+                }
+            }
+        });
+    };
+    
+    // Model B button
+    loadModelBButton.setButtonText("Load Model B");
+    loadModelBButton.onClick = [this]
+    { 
+        chooser = std::make_unique<juce::FileChooser>("Select Model B (TorchScript .pt file)...", juce::File{});
+        auto chooserFlags = juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles;
+        chooser->launchAsync(chooserFlags, [this](const juce::FileChooser &fc){
+            auto file = fc.getResult();
+            if (file != juce::File{}) {
+                modelBPath = file.getFullPathName().toStdString();
+                DBG("[MAINCOMPONENT] Model B loaded: " << modelBPath);
+                loadModelBButton.setColour(juce::TextButton::buttonColourId, juce::Colours::green);
+                models.push_back(new Autoencoder(file.getFullPathName().toStdString()));
+                // If both models are loaded, enable interpolation
+                if (!modelAPath.empty()) {
+                    enableInterpolationButton.setEnabled(true);
+                    createSliders();
+                    resetSliders();
+                }
+            }
+        });
+    };
+    
+    // Enable Interpolation button
+    enableInterpolationButton.setButtonText("Enable Interpolation");
+    enableInterpolationButton.setEnabled(false);
+    enableInterpolationButton.onClick = [this]
+    { 
+        if (!modelAPath.empty() && !modelBPath.empty()) {
+            try {
+                juce::ScopedLock lock(deviceManager.getAudioCallbackLock());
+                modelInterpolator = std::make_unique<ModelInterpolator>(modelAPath, modelBPath);
+                isInterpolationMode = true;
+                interpolationSlider.setEnabled(true);
+                enableInterpolationButton.setColour(juce::TextButton::buttonColourId, juce::Colours::blue);
+                DBG("[MAINCOMPONENT] Model interpolator initialized");
+            } catch (std::exception &e) {
+                DBG("[MAINCOMPONENT] Error creating interpolator: " << e.what());
+            }
+        }
+    };
 
     // playButton->onClick = [this]
     // { 
@@ -48,6 +113,9 @@ MainComponent::MainComponent()
     };
 
     addAndMakeVisible(&openButton);
+    addAndMakeVisible(&loadModelAButton);
+    addAndMakeVisible(&loadModelBButton);
+    addAndMakeVisible(&enableInterpolationButton);
     addAndMakeVisible(rightArrow);
     addAndMakeVisible(leftArrow);
     // addAndMakeVisible(playButton);
@@ -81,6 +149,25 @@ MainComponent::MainComponent()
             models[modelSelector]->setSClip(sClipSlider.getValue());
     };
     addAndMakeVisible(&sClipSlider);
+    
+    // Interpolation Slider (alpha: 0.0 = model A, 1.0 = model B)
+    interpolationSlider.setSliderStyle(juce::Slider::LinearHorizontal);
+    interpolationSlider.setRange(0.0, 1.0, 0.001);
+    interpolationSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 80, 20);
+    interpolationSlider.setPopupDisplayEnabled(true, false, this);
+    interpolationSlider.setTextValueSuffix(" Alpha");
+    interpolationSlider.setValue(0.5, juce::dontSendNotification);
+    interpolationSlider.setEnabled(false);
+    interpolationSlider.onValueChange = [this]
+    {
+        if (modelInterpolator && isInterpolationMode) {
+            float alpha = interpolationSlider.getValue();
+            DBG("[MAINCOMPONENT] Interpolation alpha: " << alpha);
+            juce::ScopedLock lock(deviceManager.getAudioCallbackLock());
+            modelInterpolator->update_weights(alpha);
+        }
+    };
+    addAndMakeVisible(&interpolationSlider);
 
     // MIDI INPUT
     addAndMakeVisible(midiInputList);
@@ -184,11 +271,16 @@ void MainComponent::resized()
     // If you add any child components, this is where you should
     // update their positions.
     openButton.setBounds(10, 10, getWidth() / 12, 20);
+    loadModelAButton.setBounds(10, 35, getWidth() / 12, 20);
+    loadModelBButton.setBounds(10, 60, getWidth() / 12, 20);
+    enableInterpolationButton.setBounds(10, 85, getWidth() / 12, 20);
+    interpolationSlider.setBounds(10, 110, 200, 30);
+    
     rightArrow->setBounds(150, 200, getWidth() / 24, getWidth() / 24);
     leftArrow->setBounds(50, 200, getWidth() / 24, getWidth() / 24);
     // playButton->setBounds(50, 350, getWidth() / 32, getWidth() / 32);
-    xMaxSlider.setBounds(0, 60, 100, 100);
-    sClipSlider.setBounds(100, 60, 100, 100);
+    xMaxSlider.setBounds(0, 150, 100, 100);
+    sClipSlider.setBounds(100, 150, 100, 100);
 
     juce::Rectangle<int> layoutArea{240, 5, 600, 190};
     auto sliderArea = layoutArea.removeFromTop(320);
