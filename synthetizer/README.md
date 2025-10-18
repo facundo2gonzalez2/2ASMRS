@@ -23,6 +23,7 @@ sudo apt install libasound2-dev libjack-jackd2-dev \
 ## Build 
 ```console
 cmake -Bbuild # or cmake -Bbuild -DCMAKE_BUILD_TYPE=Debug
+cmake -Bbuild -DTorch_DIR=external/libtorch-cxx11-abi-shared-with-deps-1.13.1+cpu/libtorch/share/cmake/Torch
 cmake --build build
 ```
 
