@@ -72,10 +72,14 @@ class Decoder(nn.Module):
 
 
 class VariationalAutoEncoder(pl.LightningModule):
-    def __init__(self, encoder_layers, decoder_layers, latent_dim):
+    def __init__(
+        self, encoder_layers, decoder_layers, latent_dim, checkpoint_path=None
+    ):
         super().__init__()
         self.encoder = VAEEncoder(encoder_layers, latent_dim)
         self.decoder = Decoder((latent_dim,) + tuple(decoder_layers))
+        if checkpoint_path is not None:
+            self.load_checkpoint(checkpoint_path)
 
     def forward(self, x):
         mu, logvar = self.encoder(x)
@@ -97,6 +101,10 @@ class VariationalAutoEncoder(pl.LightningModule):
     #     kl_loss = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
 
     #     return recon_loss + beta * kl_loss, recon_loss, kl_loss
+
+    def load_checkpoint(self, path, device="cpu"):
+        self.load_state_dict(torch.load(path, map_location=device)["state_dict"])
+        self.checkpoint_path = path
 
     def training_step(self, batch, batch_idx):
         x, _ = batch

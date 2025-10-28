@@ -2,6 +2,7 @@ from fire import Fire
 from pathlib import Path
 import pandas as pd
 import torch
+import datetime
 
 from audio_utils import (
     get_spectrograms_from_audios,
@@ -14,6 +15,7 @@ from VariationalAutoEncoder import VariationalAutoEncoder
 
 def train(
     audio_path_list,
+    run_name,
     target_sampling_rate=22050,
     hop_length_samples=512,
     win_length_samples=2048,
@@ -28,8 +30,8 @@ def train(
     batch_size=128,
     # loss="MAE+MSE",
     beta=0.01,
+    latent_dim=4,
     log_path="logs_vae",
-    run_name="example_vae",
     accelerator="cpu",
     checkpoint_path=None,
 ):
@@ -59,7 +61,7 @@ def train(
     encoder_layers = (win_length // 2 + 1,) + encoder_layers
     decoder_layers = encoder_layers[::-1][1:]
 
-    vae = VariationalAutoEncoder(encoder_layers, decoder_layers, latent_dim=4)
+    vae = VariationalAutoEncoder(encoder_layers, decoder_layers, latent_dim=latent_dim)
 
     vae.load_data(X, y, Xmax, db_min_norm=db_min_norm, spec_in_db=spec_in_db)
     vae.split_data(validation_size=validation_size)
@@ -68,6 +70,7 @@ def train(
     hps = {
         "encoder_layers": encoder_layers,
         "decoder_layers": decoder_layers,
+        "latent_dim": latent_dim,
         "win_length": win_length,
         "hop_length": hop_length,
         "loss": "MAE + KL",
@@ -88,10 +91,11 @@ def train(
         batch_size=batch_size,
         learning_rate=learning_rate,
         beta=beta,
+        run_name=run_name,
     )
 
     pd.DataFrame(metrics_tracker.collection).astype(float).to_csv(
-        Path(trainer.log_dir, "metrics_history_vae.csv")
+        Path(trainer.log_dir, "metrics_history_vae.csv")  # type: ignore
     )
 
     vae.export_decoder()
@@ -121,6 +125,10 @@ def train(
 
 
 def main(path=None, **kwargs):
+    # path = Path(
+    #     "data_model_a/fur-elise-by-ludwig-van-beethoven-classic-guitar-ahmad-mousavipour-13870.mp3"
+    # )
+    path = Path("data_model_b/Bagatelle no. 25 ''Für Elise'', WoO 59.mp3")
     if path is None:
         print("No path provided, using example")
         # Download example from url if already not exists
@@ -139,7 +147,8 @@ def main(path=None, **kwargs):
     else:
         # Load all wavfiles in directory
         audio_list = list(path.glob("*.*"))
-    train(audio_list, **kwargs)
+    print(f"Training on {path}")
+    train(audio_list, run_name="fur_elise_piano", **kwargs)
 
 
 if __name__ == "__main__":

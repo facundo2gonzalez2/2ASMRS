@@ -2,6 +2,9 @@ __pycache__/
 .venv/
 logs/
 data/
+data_model_a/
+data_model_b/
 exported_models/
 exported_models_vae/
 tb_logs_vae/
+outputs/
