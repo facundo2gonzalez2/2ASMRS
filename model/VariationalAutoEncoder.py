@@ -1,8 +1,7 @@
 import json
 from pathlib import Path
 import numpy as np
-from audio_utils import spectrogram2audio
-from utils import train_val_split_no_overlap  # , eps
+from utils import train_val_split_no_overlap
 import torch
 from sklearn.model_selection import train_test_split
 from torch import nn
@@ -11,9 +10,8 @@ from torch.utils.data import DataLoader, TensorDataset
 from pytorch_lightning.loggers import TensorBoardLogger
 from utils import MetricTracker
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
-from pytorch_lightning import seed_everything
-from sklearn.decomposition import PCA
 from torch.nn.utils import weight_norm
+from pytorch_lightning.callbacks import Callback
 
 
 def normalization(module: nn.Module, mode: str = "weight_norm"):
@@ -92,7 +90,10 @@ class VariationalAutoEncoder(pl.LightningModule):
         recon_loss = torch.mean((x - x_hat) ** 2)
         # KL divergence
         kl_loss = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
-        return recon_loss + self.beta * kl_loss, recon_loss, kl_loss
+
+        b_kl_loss = kl_loss * self.beta
+
+        return recon_loss + b_kl_loss, recon_loss, b_kl_loss
 
     # def loss_fn2(self, x, x_hat, mu, logvar):
     #     # Supongamos que x y x_hat son espectrogramas de magnitud
@@ -189,12 +190,25 @@ class VariationalAutoEncoder(pl.LightningModule):
         dataset = TensorDataset(
             torch.tensor(self.X_train).float(), torch.tensor(self.X_train).float()
         )
-        train_dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=2)
+        train_dataloader = DataLoader(
+            dataset,
+            batch_size=batch_size,
+            num_workers=8,
+            persistent_workers=True,
+            pin_memory=True,
+            shuffle=True,
+        )
 
         dataset = TensorDataset(
             torch.tensor(self.X_val).float(), torch.tensor(self.X_val).float()
         )
-        val_dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=2)
+        val_dataloader = DataLoader(
+            dataset,
+            batch_size=batch_size,
+            num_workers=8,
+            persistent_workers=True,
+            pin_memory=True,
+        )
 
         logger = TensorBoardLogger(log_path, name=run_name)
         metric_tracker = MetricTracker()
@@ -203,7 +217,7 @@ class VariationalAutoEncoder(pl.LightningModule):
             monitor="val_loss", min_delta=1e-6, patience=100, verbose=True, mode="min"
         )
 
-        callbacks = [metric_tracker]
+        callbacks: list[Callback] = [metric_tracker]
         if use_early_stopping:
             callbacks.append(early_stop_callback)
 
@@ -213,6 +227,7 @@ class VariationalAutoEncoder(pl.LightningModule):
             logger=logger,
             callbacks=callbacks,
             accelerator=accelerator,
+            gradient_clip_val=1.0,
         )
 
         trainer.fit(
