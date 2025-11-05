@@ -2,7 +2,6 @@ from fire import Fire
 from pathlib import Path
 import pandas as pd
 import torch
-import datetime
 
 from audio_utils import (
     get_spectrograms_from_audios,
@@ -26,10 +25,10 @@ def train(
     normalize_each_audio=False,
     validation_size=0.05,
     learning_rate=0.001,
-    epochs=2000,
-    batch_size=128,
+    epochs=1000,
+    batch_size=256,
     # loss="MAE+MSE",
-    beta=0.01,
+    beta=0,
     latent_dim=4,
     log_path="logs_vae",
     accelerator="cpu",
@@ -61,7 +60,12 @@ def train(
     encoder_layers = (win_length // 2 + 1,) + encoder_layers
     decoder_layers = encoder_layers[::-1][1:]
 
-    vae = VariationalAutoEncoder(encoder_layers, decoder_layers, latent_dim=latent_dim)
+    vae = VariationalAutoEncoder(
+        encoder_layers,
+        decoder_layers,
+        latent_dim=latent_dim,
+        checkpoint_path=checkpoint_path,
+    )
 
     vae.load_data(X, y, Xmax, db_min_norm=db_min_norm, spec_in_db=spec_in_db)
     vae.split_data(validation_size=validation_size)
@@ -92,6 +96,7 @@ def train(
         learning_rate=learning_rate,
         beta=beta,
         run_name=run_name,
+        accelerator=accelerator,
     )
 
     pd.DataFrame(metrics_tracker.collection).astype(float).to_csv(
@@ -109,7 +114,7 @@ def train(
         hop_length,
         win_length,
         target_sampling_rate,
-        trainer.log_dir,
+        Path(trainer.log_dir, "reconstructed_audios.mp3"),  # type: ignore
         spec_in_db,
     )
 
@@ -121,14 +126,23 @@ def train(
     with torch.no_grad():
         mu, logvar = vae.encoder(X)
         Z = mu.cpu().numpy()
-    save_latentscore(Z, hop_length, target_sampling_rate, trainer.log_dir)
+
+    if trainer.log_dir is not None:
+        path = Path(trainer.log_dir, "mu_latent_score.png")
+        save_latentscore(Z, hop_length, target_sampling_rate, path)
+
+        path = Path(trainer.log_dir, "logvar_latent_score.png")
+        save_latentscore(logvar.cpu().numpy(), hop_length, target_sampling_rate, path)
 
 
 def main(path=None, **kwargs):
-    # path = Path(
-    #     "data_model_a/fur-elise-by-ludwig-van-beethoven-classic-guitar-ahmad-mousavipour-13870.mp3"
-    # )
-    path = Path("data_model_b/Bagatelle no. 25 ''Für Elise'', WoO 59.mp3")
+    # betas = [0.01, 0.001, 0.0001, 0.00001, 0]
+
+    path = Path("data/playground/cmajor_loop.mp3")
+    run_name = "model_fine_tunning_guitar"
+    checkpoint_path = Path("tb_logs_vae/piano/version_0/checkpoints").glob("*.ckpt")
+    checkpoint_path = list(checkpoint_path)[0]
+
     if path is None:
         print("No path provided, using example")
         # Download example from url if already not exists
@@ -147,8 +161,8 @@ def main(path=None, **kwargs):
     else:
         # Load all wavfiles in directory
         audio_list = list(path.glob("*.*"))
-    print(f"Training on {path}")
-    train(audio_list, run_name="fur_elise_piano", **kwargs)
+
+    train(audio_list, run_name=run_name, checkpoint_path=checkpoint_path, **kwargs)
 
 
 if __name__ == "__main__":

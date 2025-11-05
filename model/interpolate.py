@@ -49,8 +49,11 @@ def interpolar_vae(
 
 
 if __name__ == "__main__":
-    model_path_a = "tb_logs_vae/playground/version_6"
-    model_path_b = "tb_logs_vae/playground/version_7"
+    # model_path_a = "tb_logs_vae/playground/version_6"
+    # model_path_b = "tb_logs_vae/playground/version_7"
+    model_path_a = "tb_logs_vae/model_fine_tunning_guitar/version_0"
+    model_path_b = "tb_logs_vae/model_fine_tunning/version_0"
+    output_dir = "outputs/interpolate_fine_tuned/"
 
     checkpoint_path_a = list(Path(model_path_a, "checkpoints").glob("*.ckpt"))[0]
     with open(Path(model_path_a, "hparams.yaml")) as file:
@@ -88,7 +91,7 @@ if __name__ == "__main__":
 
     # --- 3. Interpola los modelos ---
     alphas = [0.0, 0.25, 0.5, 0.75, 1.0]
-    encoders = [("guitar", model_a), ("voice", model_b)]
+    encoders = [("guitar", model_a), ("voice", model_b), ("interpolated", None)]
     audios = [
         Path("data/playground/c-major-scale-90710.mp3"),
         Path("data/playground/c-major-scale-child-102262.mp3"),
@@ -110,6 +113,9 @@ if __name__ == "__main__":
                 # --- 4. Usa el modelo interpolado para predicción ---
                 modelo_interpolado.eval()
                 modelo_interpolado.decoder.eval()
+
+                if encoder_model is None:
+                    encoder_model = modelo_interpolado
 
                 encoder_model.eval()
                 encoder_model.encoder.eval()
@@ -150,6 +156,8 @@ if __name__ == "__main__":
                 )
                 audio = generate_audio(Y, hps_a, phase_option, frames)
 
-                output_path = f"outputs/playground/exp_{alpha}_{encoder_name}_{audio_path.stem}.wav"
+                output_path = (
+                    output_dir + f"exp_{alpha}_{encoder_name}_{audio_path.stem}.wav"
+                )
                 sf.write(output_path, audio, hps_a["target_sampling_rate"])
                 print(f"Audio saved to: {output_path}")

@@ -95,14 +95,6 @@ class VariationalAutoEncoder(pl.LightningModule):
 
         return recon_loss + b_kl_loss, recon_loss, b_kl_loss
 
-    # def loss_fn2(self, x, x_hat, mu, logvar):
-    #     # Supongamos que x y x_hat son espectrogramas de magnitud
-    #     recon_loss = torch.mean(torch.abs(x - x_hat))  # L1 suele sonar mejor que MSE
-    #
-    #     kl_loss = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
-
-    #     return recon_loss + beta * kl_loss, recon_loss, kl_loss
-
     def load_checkpoint(self, path, device="cpu"):
         self.load_state_dict(torch.load(path, map_location=device)["state_dict"])
         self.checkpoint_path = path
@@ -110,19 +102,19 @@ class VariationalAutoEncoder(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         x, _ = batch
         x_hat, mu, logvar = self(x)
-        loss, recon_loss, kl_loss = self.loss_fn(x, x_hat, mu, logvar)
+        loss, recon_loss, bkl_loss = self.loss_fn(x, x_hat, mu, logvar)
         self.log("train_loss", loss)
         self.log("train_recon", recon_loss)
-        self.log("train_kl", kl_loss)
+        self.log("train_bkl", bkl_loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
         x, _ = batch
         x_hat, mu, logvar = self(x)
-        loss, recon_loss, kl_loss = self.loss_fn(x, x_hat, mu, logvar)
+        loss, recon_loss, bkl_loss = self.loss_fn(x, x_hat, mu, logvar)
         self.log("val_loss", loss)
         self.log("val_recon", recon_loss)
-        self.log("val_kl", kl_loss)
+        self.log("val_bkl", bkl_loss)
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
@@ -181,7 +173,7 @@ class VariationalAutoEncoder(pl.LightningModule):
         run_name="example_vae",
         accelerator="cpu",
         use_early_stopping=True,
-    ):
+    ) -> tuple[pl.Trainer, MetricTracker]:
         self.run_name = run_name
         self.learning_rate = learning_rate
         self.beta = beta
