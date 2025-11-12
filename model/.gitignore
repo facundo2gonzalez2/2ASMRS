@@ -8,3 +8,4 @@ exported_models/
 exported_models_vae/
 tb_logs_vae/
 outputs/
+experiment_latent_dim/

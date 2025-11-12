@@ -19,7 +19,7 @@ def train(
     hop_length_samples=512,
     win_length_samples=2048,
     encoder_layers=(1024, 512, 256, 128, 64, 32, 16, 8, 4),
-    # seed=42,
+    seed=None,
     db_min_norm=-60,
     spec_in_db=True,
     normalize_each_audio=False,
@@ -27,11 +27,10 @@ def train(
     learning_rate=0.001,
     epochs=1000,
     batch_size=256,
-    # loss="MAE+MSE",
     beta=0,
     latent_dim=4,
-    log_path="logs_vae",
-    accelerator="cpu",
+    log_path=None,
+    accelerator="auto",
     checkpoint_path=None,
 ):
     hop_length = hop_length_samples
@@ -65,6 +64,7 @@ def train(
         decoder_layers,
         latent_dim=latent_dim,
         checkpoint_path=checkpoint_path,
+        seed=seed,
     )
 
     vae.load_data(X, y, Xmax, db_min_norm=db_min_norm, spec_in_db=spec_in_db)
@@ -89,6 +89,9 @@ def train(
         "Xmax": Xmax,
     }
 
+    if log_path is None:
+        log_path = "tb_logs_vae"
+
     vae.log_hyperparameters(**hps)
     trainer, metrics_tracker = vae.train_model(
         epochs=epochs,
@@ -97,6 +100,7 @@ def train(
         beta=beta,
         run_name=run_name,
         accelerator=accelerator,
+        log_path=log_path,
     )
 
     pd.DataFrame(metrics_tracker.collection).astype(float).to_csv(
@@ -138,10 +142,9 @@ def train(
 def main(path=None, **kwargs):
     # betas = [0.01, 0.001, 0.0001, 0.00001, 0]
 
-    path = Path("data/playground/cmajor_loop.mp3")
-    run_name = "model_fine_tunning_guitar"
-    checkpoint_path = Path("tb_logs_vae/piano/version_0/checkpoints").glob("*.ckpt")
-    checkpoint_path = list(checkpoint_path)[0]
+    path = Path("data/piano/fur_elise_piano.mp3")
+    # checkpoint_path = Path("tb_logs_vae/piano/version_0/checkpoints").glob("*.ckpt")
+    # checkpoint_path = list(checkpoint_path)[0]
 
     if path is None:
         print("No path provided, using example")
@@ -162,7 +165,26 @@ def main(path=None, **kwargs):
         # Load all wavfiles in directory
         audio_list = list(path.glob("*.*"))
 
-    train(audio_list, run_name=run_name, checkpoint_path=checkpoint_path, **kwargs)
+    arqs = [
+        ((1024, 512, 256, 128, 64, 32, 16, 8, 4, 2), 2),
+        ((1024, 512, 256, 128, 64, 32, 16, 8, 4, 3), 3),
+        ((1024, 512, 256, 128, 64, 32, 16, 8, 4), 4),
+        ((1024, 512, 256, 128, 64, 32, 16, 8, 6), 6),
+        ((1024, 512, 256, 128, 64, 32, 16, 8), 8),
+    ]
+
+    for encoder_layers, latent_dim in arqs:
+        run_name = f"vae_latentdim_{latent_dim}"
+        print("=" * 60)
+        print(f"Running experiment: {run_name}")
+        train(
+            audio_list,
+            run_name=run_name,
+            encoder_layers=encoder_layers,
+            latent_dim=latent_dim,
+            log_path="experiment_latent_dim",
+            **kwargs,
+        )
 
 
 if __name__ == "__main__":

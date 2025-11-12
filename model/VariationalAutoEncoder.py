@@ -12,6 +12,7 @@ from utils import MetricTracker
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from torch.nn.utils import weight_norm
 from pytorch_lightning.callbacks import Callback
+from pytorch_lightning import seed_everything
 
 
 def normalization(module: nn.Module, mode: str = "weight_norm"):
@@ -71,9 +72,17 @@ class Decoder(nn.Module):
 
 class VariationalAutoEncoder(pl.LightningModule):
     def __init__(
-        self, encoder_layers, decoder_layers, latent_dim, checkpoint_path=None
+        self,
+        encoder_layers,
+        decoder_layers,
+        latent_dim,
+        checkpoint_path=None,
+        seed=None,
     ):
         super().__init__()
+        self.seed = seed
+        if seed:
+            seed_everything(seed, workers=True)
         self.encoder = VAEEncoder(encoder_layers, latent_dim)
         self.decoder = Decoder((latent_dim,) + tuple(decoder_layers))
         if checkpoint_path is not None:
@@ -167,9 +176,9 @@ class VariationalAutoEncoder(pl.LightningModule):
         self,
         learning_rate,
         beta,
+        log_path,
         epochs=120,
         batch_size=512,
-        log_path="tb_logs_vae",
         run_name="example_vae",
         accelerator="cpu",
         use_early_stopping=True,
