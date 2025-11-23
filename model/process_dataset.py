@@ -79,7 +79,7 @@ if __name__ == "__main__":
     current_dir = os.path.dirname(os.path.abspath(__file__))
     # Based on previous exploration, dataset is at model/data/VocalSet
     # If this script is in model/, then data/VocalSet is correct relative path
-    dataset_path = os.path.join(current_dir, "data_instruments")
+    dataset_path = os.path.join(current_dir, "data_instruments_small")
     instruments = ["piano", "voice", "guitar", "bass"]
 
     for instrument in instruments:

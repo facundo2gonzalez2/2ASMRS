@@ -145,10 +145,10 @@ def main(path=None, **kwargs):
     # checkpoint_path = list(checkpoint_path)[0]
 
     instruments_paths = [
-        Path("data_instruments/piano"),
-        Path("data_instruments/voice"),
-        Path("data_instruments/guitar"),
-        Path("data_instruments/bass"),
+        Path("data_instruments_small/piano"),
+        Path("data_instruments_small/voice"),
+        Path("data_instruments_small/guitar"),
+        Path("data_instruments_small/bass"),
     ]
 
     path = instruments_paths[0]
@@ -176,7 +176,7 @@ def main(path=None, **kwargs):
             run_name=run_name,
             encoder_layers=encoder_layers,
             latent_dim=latent_dim,
-            log_path=f"experiment_latent_dim_{path.name}",
+            log_path=f"experiment_latent_dim_{path.name}_small",
             **kwargs,
         )
 

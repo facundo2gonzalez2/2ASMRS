@@ -3,9 +3,17 @@ __pycache__/
 logs/
 data/
 data_instruments/
+data_instruments_small/
 data_instruments.zip
+data_instruments_small.zip
 exported_models/
 exported_models_vae/
 tb_logs_vae/
 outputs/
 experiment_latent_dim/
+experiment_latent_dim_piano/
+experiment_latent_dim_piano_small/
+experiment_latent_dim_piano_small/
+experiment_latent_dim_voice_small/
+experiment_latent_dim_guitar_small/
+experiment_latent_dim_bass_small/
