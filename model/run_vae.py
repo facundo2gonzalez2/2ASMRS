@@ -141,50 +141,43 @@ def train(
 
 def main(path=None, **kwargs):
     # betas = [0.01, 0.001, 0.0001, 0.00001, 0]
-
-    path = Path("data/piano/fur_elise_piano.mp3")
     # checkpoint_path = Path("tb_logs_vae/piano/version_0/checkpoints").glob("*.ckpt")
     # checkpoint_path = list(checkpoint_path)[0]
 
-    if path is None:
-        print("No path provided, using example")
-        # Download example from url if already not exists
-        path = Path("data", "Mozart25_2min.wav")
-        if not path.exists():
-            import requests
-
-            path.parent.mkdir(parents=True, exist_ok=True)
-            url = "https://www.dropbox.com/s/iar9y2beo884zah/Mozart25_2min.wav?dl=1"
-            r = requests.get(url, allow_redirects=True)
-            path.write_bytes(r.content)
-
-    path = Path(path)
-    if path.is_file():
-        audio_list = [path]
-    else:
-        # Load all wavfiles in directory
-        audio_list = list(path.glob("*.*"))
-
-    arqs = [
-        ((1024, 512, 256, 128, 64, 32, 16, 8, 4, 2), 2),
-        ((1024, 512, 256, 128, 64, 32, 16, 8, 4, 3), 3),
-        ((1024, 512, 256, 128, 64, 32, 16, 8, 4), 4),
-        ((1024, 512, 256, 128, 64, 32, 16, 8, 6), 6),
-        ((1024, 512, 256, 128, 64, 32, 16, 8), 8),
+    instruments_paths = [
+        Path("data_instruments/piano"),
+        Path("data_instruments/voice"),
+        Path("data_instruments/guitar"),
+        Path("data_instruments/bass"),
     ]
 
-    for encoder_layers, latent_dim in arqs:
-        run_name = f"vae_latentdim_{latent_dim}"
-        print("=" * 60)
-        print(f"Running experiment: {run_name}")
-        train(
-            audio_list,
-            run_name=run_name,
-            encoder_layers=encoder_layers,
-            latent_dim=latent_dim,
-            log_path="experiment_latent_dim",
-            **kwargs,
-        )
+    for path in instruments_paths:
+        if path.is_file():
+            audio_list = [path]
+        else:
+            # Load all wavfiles in directory
+            audio_list = list(path.glob("*.*"))
+
+        arqs = [
+            ((1024, 512, 256, 128, 64, 32, 16, 8, 4, 2), 2),
+            ((1024, 512, 256, 128, 64, 32, 16, 8, 4, 3), 3),
+            ((1024, 512, 256, 128, 64, 32, 16, 8, 4), 4),
+            ((1024, 512, 256, 128, 64, 32, 16, 8, 6), 6),
+            ((1024, 512, 256, 128, 64, 32, 16, 8), 8),
+        ]
+
+        for encoder_layers, latent_dim in arqs:
+            run_name = f"vae_latentdim_{latent_dim}"
+            print("=" * 60)
+            print(f"Running experiment: {run_name}")
+            train(
+                audio_list,
+                run_name=run_name,
+                encoder_layers=encoder_layers,
+                latent_dim=latent_dim,
+                log_path=f"experiment_latent_dim_{path.name}",
+                **kwargs,
+            )
 
 
 if __name__ == "__main__":
