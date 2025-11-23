@@ -3,6 +3,7 @@ __pycache__/
 logs/
 data/
 data_instruments/
+data_instruments.zip
 exported_models/
 exported_models_vae/
 tb_logs_vae/

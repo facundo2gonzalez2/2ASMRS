@@ -151,33 +151,34 @@ def main(path=None, **kwargs):
         Path("data_instruments/bass"),
     ]
 
-    for path in instruments_paths:
-        if path.is_file():
-            audio_list = [path]
-        else:
-            # Load all wavfiles in directory
-            audio_list = list(path.glob("*.*"))
+    path = instruments_paths[0]
 
-        arqs = [
-            ((1024, 512, 256, 128, 64, 32, 16, 8, 4, 2), 2),
-            ((1024, 512, 256, 128, 64, 32, 16, 8, 4, 3), 3),
-            ((1024, 512, 256, 128, 64, 32, 16, 8, 4), 4),
-            ((1024, 512, 256, 128, 64, 32, 16, 8, 6), 6),
-            ((1024, 512, 256, 128, 64, 32, 16, 8), 8),
-        ]
+    if path.is_file():
+        audio_list = [path]
+    else:
+        # Load all wavfiles in directory
+        audio_list = list(path.glob("*.*"))
 
-        for encoder_layers, latent_dim in arqs:
-            run_name = f"vae_latentdim_{latent_dim}"
-            print("=" * 60)
-            print(f"Running experiment: {run_name}")
-            train(
-                audio_list,
-                run_name=run_name,
-                encoder_layers=encoder_layers,
-                latent_dim=latent_dim,
-                log_path=f"experiment_latent_dim_{path.name}",
-                **kwargs,
-            )
+    arqs = [
+        ((1024, 512, 256, 128, 64, 32, 16, 8, 4, 2), 2),
+        ((1024, 512, 256, 128, 64, 32, 16, 8, 4, 3), 3),
+        ((1024, 512, 256, 128, 64, 32, 16, 8, 4), 4),
+        ((1024, 512, 256, 128, 64, 32, 16, 8, 6), 6),
+        ((1024, 512, 256, 128, 64, 32, 16, 8), 8),
+    ]
+
+    for encoder_layers, latent_dim in arqs:
+        run_name = f"vae_latentdim_{latent_dim}"
+        print("=" * 60)
+        print(f"Running experiment: {run_name}")
+        train(
+            audio_list,
+            run_name=run_name,
+            encoder_layers=encoder_layers,
+            latent_dim=latent_dim,
+            log_path=f"experiment_latent_dim_{path.name}",
+            **kwargs,
+        )
 
 
 if __name__ == "__main__":
