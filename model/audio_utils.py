@@ -24,7 +24,7 @@ def get_waveform(path, target_sr, duration=None):
     if original_sr != target_sr:
         print(f"Resampling from {original_sr} to {target_sr}")
         waveform = resample(waveform, original_sr, target_sr)
-    if waveform.shape[0] > 1:
+    if waveform.ndim > 1:
         waveform = waveform[0, :]  # Use left channel
     if duration is not None:
         # Trim to custom duration
