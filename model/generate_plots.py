@@ -2,80 +2,63 @@ import pandas as pd
 import re
 import matplotlib.pyplot as plt
 
-# latentdim_experiments = [
-#     "vae_latentdim_2",
-#     "vae_latentdim_3",
-#     "vae_latentdim_4",
-#     "vae_latentdim_6",
-#     "vae_latentdim_8",
-# ]
+latentdim_experiments = [
+    "vae_latentdim_2",
+    "vae_latentdim_3",
+    "vae_latentdim_4",
+    "vae_latentdim_6",
+    "vae_latentdim_8",
+]
 
-# experiments = [
-#     "experiment_latent_dim_voice_small",
-#     "experiment_latent_dim_piano_small",
-#     "experiment_latent_dim_bass_small",
-#     "experiment_latent_dim_guitar_small",
-# ]
+experiments = [
+    "experiment_latent_dim_voice_small",
+    "experiment_latent_dim_piano_small",
+    "experiment_latent_dim_bass_small",
+    "experiment_latent_dim_guitar_small",
+]
 
-# for experiment in experiments:
-#     for latentdim_experiment in latentdim_experiments:
-#         metrics = pd.read_csv(
-#             f"{experiment}/{latentdim_experiment}/version_0/metrics_history_vae.csv"
-#         )
-#         min_val_loss = metrics["val_loss"].min()
-#         min_val_loss_epoch = metrics["val_loss"].idxmin()
-#         print(
-#             f"Experiment: {experiment}, Latent Dim: {latentdim_experiment}, Min Val Loss: {min_val_loss}, Min Val Loss Epoch: {min_val_loss_epoch}"
-#         )
+versions = [f"version_{i}" for i in range(6)]
 
-#         min_train_loss = metrics["train_loss"].min()
-#         min_train_loss_epoch = metrics["train_loss"].idxmin()
-#         print(
-#             f"Experiment: {experiment}, Latent Dim: {latentdim_experiment}, Min Train Loss: {min_train_loss}, Min Train Loss Epoch: {min_train_loss_epoch}"
-#         )
+data_str = ""
 
-data_str = """
-Experiment: experiment_latent_dim_voice_small, Latent Dim: vae_latentdim_2, Min Val Loss: 0.0036795954219996, Min Val Loss Epoch: 896
-Experiment: experiment_latent_dim_voice_small, Latent Dim: vae_latentdim_2, Min Train Loss: 0.0031399470753967, Min Train Loss Epoch: 971
-Experiment: experiment_latent_dim_voice_small, Latent Dim: vae_latentdim_3, Min Val Loss: 0.0028366423211991, Min Val Loss Epoch: 845
-Experiment: experiment_latent_dim_voice_small, Latent Dim: vae_latentdim_3, Min Train Loss: 0.0023210193030536, Min Train Loss Epoch: 811
-Experiment: experiment_latent_dim_voice_small, Latent Dim: vae_latentdim_4, Min Val Loss: 0.0022639378439635, Min Val Loss Epoch: 824
-Experiment: experiment_latent_dim_voice_small, Latent Dim: vae_latentdim_4, Min Train Loss: 0.00181851524394, Min Train Loss Epoch: 865
-Experiment: experiment_latent_dim_voice_small, Latent Dim: vae_latentdim_6, Min Val Loss: 0.0019274718360975, Min Val Loss Epoch: 998
-Experiment: experiment_latent_dim_voice_small, Latent Dim: vae_latentdim_6, Min Train Loss: 0.0016014863504096, Min Train Loss Epoch: 1000
-Experiment: experiment_latent_dim_voice_small, Latent Dim: vae_latentdim_8, Min Val Loss: 0.0017863225657492, Min Val Loss Epoch: 961
-Experiment: experiment_latent_dim_voice_small, Latent Dim: vae_latentdim_8, Min Train Loss: 0.0015274350298568, Min Train Loss Epoch: 958
-Experiment: experiment_latent_dim_piano_small, Latent Dim: vae_latentdim_2, Min Val Loss: 0.0022211386822164, Min Val Loss Epoch: 691
-Experiment: experiment_latent_dim_piano_small, Latent Dim: vae_latentdim_2, Min Train Loss: 0.0019498858600854, Min Train Loss Epoch: 783
-Experiment: experiment_latent_dim_piano_small, Latent Dim: vae_latentdim_3, Min Val Loss: 0.0022101034410297, Min Val Loss Epoch: 712
-Experiment: experiment_latent_dim_piano_small, Latent Dim: vae_latentdim_3, Min Train Loss: 0.0018312627216801, Min Train Loss Epoch: 741
-Experiment: experiment_latent_dim_piano_small, Latent Dim: vae_latentdim_4, Min Val Loss: 0.0014656913699582, Min Val Loss Epoch: 719
-Experiment: experiment_latent_dim_piano_small, Latent Dim: vae_latentdim_4, Min Train Loss: 0.0012296291533857, Min Train Loss Epoch: 809
-Experiment: experiment_latent_dim_piano_small, Latent Dim: vae_latentdim_6, Min Val Loss: 0.0013164352858439, Min Val Loss Epoch: 840
-Experiment: experiment_latent_dim_piano_small, Latent Dim: vae_latentdim_6, Min Train Loss: 0.0011030378518626, Min Train Loss Epoch: 919
-Experiment: experiment_latent_dim_piano_small, Latent Dim: vae_latentdim_8, Min Val Loss: 0.0012609069235622, Min Val Loss Epoch: 731
-Experiment: experiment_latent_dim_piano_small, Latent Dim: vae_latentdim_8, Min Train Loss: 0.0010808920487761, Min Train Loss Epoch: 706
-Experiment: experiment_latent_dim_bass_small, Latent Dim: vae_latentdim_2, Min Val Loss: 0.0021817458327859, Min Val Loss Epoch: 533
-Experiment: experiment_latent_dim_bass_small, Latent Dim: vae_latentdim_2, Min Train Loss: 0.0020681202877312, Min Train Loss Epoch: 602
-Experiment: experiment_latent_dim_bass_small, Latent Dim: vae_latentdim_3, Min Val Loss: 0.0029844546224921, Min Val Loss Epoch: 47
-Experiment: experiment_latent_dim_bass_small, Latent Dim: vae_latentdim_3, Min Train Loss: 0.0023435608018189, Min Train Loss Epoch: 121
-Experiment: experiment_latent_dim_bass_small, Latent Dim: vae_latentdim_4, Min Val Loss: 0.0019637839868664, Min Val Loss Epoch: 374
-Experiment: experiment_latent_dim_bass_small, Latent Dim: vae_latentdim_4, Min Train Loss: 0.0017949879402294, Min Train Loss Epoch: 365
-Experiment: experiment_latent_dim_bass_small, Latent Dim: vae_latentdim_6, Min Val Loss: 0.0018852731445804, Min Val Loss Epoch: 256
-Experiment: experiment_latent_dim_bass_small, Latent Dim: vae_latentdim_6, Min Train Loss: 0.0017070503672584, Min Train Loss Epoch: 328
-Experiment: experiment_latent_dim_bass_small, Latent Dim: vae_latentdim_8, Min Val Loss: 0.0018377560190856, Min Val Loss Epoch: 198
-Experiment: experiment_latent_dim_bass_small, Latent Dim: vae_latentdim_8, Min Train Loss: 0.0016324598109349, Min Train Loss Epoch: 279
-Experiment: experiment_latent_dim_guitar_small, Latent Dim: vae_latentdim_2, Min Val Loss: 0.0022435039281845, Min Val Loss Epoch: 533
-Experiment: experiment_latent_dim_guitar_small, Latent Dim: vae_latentdim_2, Min Train Loss: 0.0020896804053336, Min Train Loss Epoch: 549
-Experiment: experiment_latent_dim_guitar_small, Latent Dim: vae_latentdim_3, Min Val Loss: 0.0017770656850188, Min Val Loss Epoch: 634
-Experiment: experiment_latent_dim_guitar_small, Latent Dim: vae_latentdim_3, Min Train Loss: 0.0014612325467169, Min Train Loss Epoch: 683
-Experiment: experiment_latent_dim_guitar_small, Latent Dim: vae_latentdim_4, Min Val Loss: 0.0016552835004404, Min Val Loss Epoch: 593
-Experiment: experiment_latent_dim_guitar_small, Latent Dim: vae_latentdim_4, Min Train Loss: 0.0012582292547449, Min Train Loss Epoch: 662
-Experiment: experiment_latent_dim_guitar_small, Latent Dim: vae_latentdim_6, Min Val Loss: 0.0015107116196304, Min Val Loss Epoch: 780
-Experiment: experiment_latent_dim_guitar_small, Latent Dim: vae_latentdim_6, Min Train Loss: 0.0011776937171816, Min Train Loss Epoch: 771
-Experiment: experiment_latent_dim_guitar_small, Latent Dim: vae_latentdim_8, Min Val Loss: 0.0013368392828851, Min Val Loss Epoch: 709
-Experiment: experiment_latent_dim_guitar_small, Latent Dim: vae_latentdim_8, Min Train Loss: 0.0010340777225792, Min Train Loss Epoch: 704
-"""
+for experiment in experiments:
+    for latentdim_experiment in latentdim_experiments:
+        val_losses = []
+        train_losses = []
+        val_epochs = []
+        train_epochs = []
+
+        for version in versions:
+            metrics = pd.read_csv(
+                f"{experiment}/{latentdim_experiment}/{version}/metrics_history_vae.csv"
+            )
+
+            # per-version minima
+            min_val_loss = metrics["val_loss"].min()
+            min_val_loss_epoch = metrics["val_loss"].idxmin()
+            min_train_loss = metrics["train_loss"].min()
+            min_train_loss_epoch = metrics["train_loss"].idxmin()
+
+            val_losses.append(min_val_loss)
+            val_epochs.append(min_val_loss_epoch)
+            train_losses.append(min_train_loss)
+            train_epochs.append(min_train_loss_epoch)
+
+        # average across versions
+        avg_min_val_loss = sum(val_losses) / len(val_losses)
+        avg_min_train_loss = sum(train_losses) / len(train_losses)
+        avg_min_val_loss_epoch = sum(val_epochs) / len(val_epochs)
+        avg_min_train_loss_epoch = sum(train_epochs) / len(train_epochs)
+
+        data_str += (
+            f"Experiment: {experiment}, Latent Dim: {latentdim_experiment}, "
+            f"Min Val Loss: {avg_min_val_loss}, Min Val Loss Epoch: {avg_min_val_loss_epoch}\n"
+        )
+        data_str += (
+            f"Experiment: {experiment}, Latent Dim: {latentdim_experiment}, "
+            f"Min Train Loss: {avg_min_train_loss}, Min Train Loss Epoch: {avg_min_train_loss_epoch}\n"
+        )
+
 
 records = {}
 pattern = r"Experiment: experiment_latent_dim_([a-z]+)_small, Latent Dim: vae_latentdim_(\d+), Min (Val|Train) Loss: ([\d\.]+)"
@@ -116,7 +99,7 @@ plt.legend()
 plt.grid(True)
 plt.xticks(sorted(df["Espacio Latente"].unique()))
 plt.tight_layout()
-plt.savefig("val_loss_vs_latent_dim.png")
+plt.savefig("imgs/val_loss_vs_latent_dim.png")
 
 
 records = {}
@@ -161,4 +144,4 @@ plt.title("Disminución del Error de Validación Promedio vs Espacio Latente")
 plt.grid(True)
 plt.xticks(sorted(stats["Espacio Latente"].unique()))
 plt.tight_layout()
-plt.savefig("val_loss_mean_std.png")
+plt.savefig("imgs/val_loss_mean_std.png")
