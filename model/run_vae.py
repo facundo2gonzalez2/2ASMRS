@@ -28,7 +28,7 @@ def train(
     learning_rate=0.001,
     epochs=1000,
     batch_size=256,
-    beta=0,
+    beta: float = 0,
     latent_dim=4,
     log_path=None,
     accelerator="auto",
@@ -170,7 +170,7 @@ def main(path=None, **kwargs):
             ]
 
             for encoder_layers, latent_dim in arqs:
-                run_name = f"vae_latentdim_{latent_dim}"
+                run_name = f"beta_vae_latentdim_{latent_dim}"
                 print("=" * 60)
                 print(f"Running experiment: {run_name}")
                 train(
@@ -178,7 +178,8 @@ def main(path=None, **kwargs):
                     run_name=run_name,
                     encoder_layers=encoder_layers,
                     latent_dim=latent_dim,
-                    log_path=f"experiment_latent_dim_{path.name}_small",
+                    beta=0.001,
+                    log_path=f"experiment_latent_dim_beta_{path.name}_small",
                     **kwargs,
                 )
         print(f"Total duration: {datetime.now() - now}")

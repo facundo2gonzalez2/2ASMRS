@@ -102,7 +102,7 @@ class VariationalAutoEncoder(pl.LightningModule):
 
         b_kl_loss = kl_loss * self.beta
 
-        return recon_loss + b_kl_loss, recon_loss, b_kl_loss
+        return recon_loss + b_kl_loss, recon_loss, kl_loss, b_kl_loss
 
     def load_checkpoint(self, path, device="cpu"):
         self.load_state_dict(torch.load(path, map_location=device)["state_dict"])
@@ -111,18 +111,20 @@ class VariationalAutoEncoder(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         x, _ = batch
         x_hat, mu, logvar = self(x)
-        loss, recon_loss, bkl_loss = self.loss_fn(x, x_hat, mu, logvar)
+        loss, recon_loss, kl_loss, bkl_loss = self.loss_fn(x, x_hat, mu, logvar)
         self.log("train_loss", loss)
         self.log("train_recon", recon_loss)
+        self.log("train_kl", kl_loss)
         self.log("train_bkl", bkl_loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
         x, _ = batch
         x_hat, mu, logvar = self(x)
-        loss, recon_loss, bkl_loss = self.loss_fn(x, x_hat, mu, logvar)
+        loss, recon_loss, kl_loss, bkl_loss = self.loss_fn(x, x_hat, mu, logvar)
         self.log("val_loss", loss)
         self.log("val_recon", recon_loss)
+        self.log("val_kl", kl_loss)
         self.log("val_bkl", bkl_loss)
 
     def configure_optimizers(self):
