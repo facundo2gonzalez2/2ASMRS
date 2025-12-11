@@ -140,11 +140,7 @@ def train(
         save_latentscore(logvar.cpu().numpy(), hop_length, target_sampling_rate, path)
 
 
-def main(path=None, **kwargs):
-    # betas = [0.01, 0.001, 0.0001, 0.00001, 0]
-    # checkpoint_path = Path("tb_logs_vae/piano/version_0/checkpoints").glob("*.ckpt")
-    # checkpoint_path = list(checkpoint_path)[0]
-
+def experiment_latent_dim(kwargs):
     instruments_paths = [
         Path("data_instruments_small/piano"),
         Path("data_instruments_small/voice"),
@@ -185,6 +181,60 @@ def main(path=None, **kwargs):
         print(f"Total duration: {datetime.now() - now}")
         print("=" * 60)
         print("\n\n")
+
+
+def train_model_base(**kwargs):
+    instruments_paths = [
+        Path("data_instruments/piano"),
+        Path("data_instruments/voice"),
+        Path("data_instruments/guitar"),
+        Path("data_instruments/bass"),
+    ]
+
+    audio_files = []
+    for path in instruments_paths:
+        if path.is_file():
+            audio_files.append(path)
+        else:
+            # Load all wavfiles in directory
+            audio_files.extend(list(path.glob("*.*")))
+
+    now = datetime.now()
+
+    train(
+        audio_files,
+        run_name="base_model_beta",
+        encoder_layers=(1024, 512, 256, 128, 64, 32, 16, 8, 4),
+        latent_dim=4,
+        beta=0.001,
+        log_path="base_model",
+        **kwargs,
+    )
+    print(f"Total duration for base model with beta training: {datetime.now() - now}")
+
+    now = datetime.now()
+    train(
+        audio_files,
+        run_name="base_model_no_beta",
+        encoder_layers=(1024, 512, 256, 128, 64, 32, 16, 8, 4),
+        latent_dim=4,
+        beta=0,
+        log_path="base_model",
+        **kwargs,
+    )
+
+    print(
+        f"Total duration for base model without beta training: {datetime.now() - now}"
+    )
+
+
+def main(path=None, **kwargs):
+    # betas = [0.01, 0.001, 0.0001, 0.00001, 0]
+    # checkpoint_path = Path("tb_logs_vae/piano/version_0/checkpoints").glob("*.ckpt")
+    # checkpoint_path = list(checkpoint_path)[0]
+
+    # experiment_latent_dim(kwargs)
+    train_model_base(**kwargs)
 
 
 if __name__ == "__main__":
