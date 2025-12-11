@@ -12,8 +12,15 @@ tb_logs_vae/
 outputs/
 experiment_latent_dim/
 experiment_latent_dim_piano/
-experiment_latent_dim_piano_small/
+
 experiment_latent_dim_piano_small/
 experiment_latent_dim_voice_small/
 experiment_latent_dim_guitar_small/
 experiment_latent_dim_bass_small/
+
+experiment_latent_dim_beta_piano_small/
+experiment_latent_dim_beta_voice_small/
+experiment_latent_dim_beta_guitar_small/
+experiment_latent_dim_beta_bass_small/
+
+base_model/
