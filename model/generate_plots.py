@@ -1,220 +1,289 @@
 import pandas as pd
-import re
 import matplotlib.pyplot as plt
+import numpy as np
+import os
+
+# Crear carpeta de imágenes si no existe
+os.makedirs("imgs", exist_ok=True)
+
+# ==========================================
+# 1. CONFIGURACIÓN Y CARGA DE DATOS
+# ==========================================
 
 latentdim_experiments = [
-    "vae_latentdim_2",
-    "vae_latentdim_3",
-    "vae_latentdim_4",
-    "vae_latentdim_6",
-    "vae_latentdim_8",
+    ("vae_latentdim_2", 2),
+    ("vae_latentdim_3", 3),
+    ("vae_latentdim_4", 4),
+    ("vae_latentdim_6", 6),
+    ("vae_latentdim_8", 8),
+]
+
+beta_latentdim_experiments = [
+    ("beta_vae_latentdim_2", 2),
+    ("beta_vae_latentdim_3", 3),
+    ("beta_vae_latentdim_4", 4),
+    ("beta_vae_latentdim_6", 6),
+    ("beta_vae_latentdim_8", 8),
 ]
 
 experiments = [
-    "experiment_latent_dim_voice_small",
-    "experiment_latent_dim_piano_small",
-    "experiment_latent_dim_bass_small",
-    "experiment_latent_dim_guitar_small",
+    ("experiment_latent_dim_voice_small", "Voice"),
+    ("experiment_latent_dim_piano_small", "Piano"),
+    ("experiment_latent_dim_bass_small", "Bass"),
+    ("experiment_latent_dim_guitar_small", "Guitar"),
+]
+
+beta_experiments = [
+    ("experiment_latent_dim_beta_voice_small", "Voice"),
+    ("experiment_latent_dim_beta_piano_small", "Piano"),
+    ("experiment_latent_dim_beta_bass_small", "Bass"),
+    ("experiment_latent_dim_beta_guitar_small", "Guitar"),
 ]
 
 versions = [f"version_{i}" for i in range(6)]
+beta_versions = [f"version_{i}" for i in range(5)]
 
-data_str = ""
-
-# 1. Generación del String de Datos
-for experiment in experiments:
-    for latentdim_experiment in latentdim_experiments:
+# --- Carga VAE Standard ---
+records = {}
+for experiment, instrument in experiments:
+    for latentdim_experiment, dim in latentdim_experiments:
         val_losses = []
         train_losses = []
-        val_epochs = []
-        train_epochs = []
 
         for version in versions:
-            metrics = pd.read_csv(
+            # Nota: Ajusta la ruta si es necesario
+            path = (
                 f"{experiment}/{latentdim_experiment}/{version}/metrics_history_vae.csv"
             )
+            if not os.path.exists(path):
+                print(f"Advertencia: No se encontró {path}")
+                continue
 
-            # per-version minima
-            min_val_loss = metrics["val_loss"].min()
-            min_val_loss_epoch = metrics["val_loss"].idxmin()
-            min_train_loss = metrics["train_loss"].min()
-            min_train_loss_epoch = metrics["train_loss"].idxmin()
+            metrics = pd.read_csv(path)
 
-            val_losses.append(min_val_loss)
-            val_epochs.append(min_val_loss_epoch)
-            train_losses.append(min_train_loss)
-            train_epochs.append(min_train_loss_epoch)
+            # Usamos val_recon para que sea comparable con el Beta VAE en términos de calidad de audio
+            val_losses.append(metrics["val_recon"].min())
+            train_losses.append(metrics["train_recon"].min())
 
-        # average across versions
-        avg_min_val_loss = sum(val_losses) / len(val_losses)
-        avg_min_train_loss = sum(train_losses) / len(train_losses)
-        avg_min_val_loss_epoch = sum(val_epochs) / len(val_epochs)
-        avg_min_train_loss_epoch = sum(train_epochs) / len(train_epochs)
-
-        data_str += (
-            f"Experiment: {experiment}, Latent Dim: {latentdim_experiment}, "
-            f"Min Val Loss: {avg_min_val_loss}, Min Val Loss Epoch: {avg_min_val_loss_epoch}\n"
-        )
-        data_str += (
-            f"Experiment: {experiment}, Latent Dim: {latentdim_experiment}, "
-            f"Min Train Loss: {avg_min_train_loss}, Min Train Loss Epoch: {avg_min_train_loss_epoch}\n"
-        )
-
-
-# 2. Parseo Unificado (Una sola vez para todo)
-records = {}
-# Actualizamos el regex para capturar también la Época al final de la línea
-pattern = r"Experiment: experiment_latent_dim_([a-z]+)_small, Latent Dim: vae_latentdim_(\d+), Min (Val|Train) Loss: ([\d\.]+), Min (?:Val|Train) Loss Epoch: ([\d\.]+)"
-
-for line in data_str.strip().split("\n"):
-    match = re.search(pattern, line)
-    if match:
-        inst = match.group(1).capitalize()
-        dim = int(match.group(2))
-        loss_type = match.group(3)
-        loss_val = float(match.group(4))
-        epoch_val = float(match.group(5))  # Capturamos la época
-
-        key = (inst, dim)
-        if key not in records:
-            records[key] = {"Instrumento": inst, "Espacio Latente": dim}
-
-        if loss_type == "Val":
-            records[key]["Error Validación"] = loss_val
-            records[key]["Min Val Loss Epoch"] = epoch_val  # Guardamos época val
-
-        elif loss_type == "Train":
-            records[key]["Error Entrenamiento"] = loss_val
-            # Opcional: records[key]["Min Train Loss Epoch"] = epoch_val
+        if val_losses:
+            records[(instrument, dim)] = {
+                "Instrumento": instrument,
+                "Espacio Latente": dim,
+                "Error Validación": sum(val_losses) / len(val_losses),
+                "Error Entrenamiento": sum(train_losses) / len(train_losses),
+            }
 
 df = pd.DataFrame(records.values())
 df = df.sort_values(by=["Instrumento", "Espacio Latente"])
 
-# ---------------------------------------------------------
-# Plot 1: Validación por Instrumento
-# ---------------------------------------------------------
-plt.figure(figsize=(10, 6))
+# --- Carga Beta VAE ---
+records_beta = {}
+for experiment, instrument in beta_experiments:
+    for latentdim_experiment, dim in beta_latentdim_experiments:
+        val_losses = []
+        val_bkl = []  # Para el gráfico de KL
 
-for instrument in df["Instrumento"].unique():
-    subset = df[df["Instrumento"] == instrument]
-    plt.plot(
-        subset["Espacio Latente"],
-        subset["Error Validación"],
+        for version in beta_versions:
+            path = (
+                f"{experiment}/{latentdim_experiment}/{version}/metrics_history_vae.csv"
+            )
+            if not os.path.exists(path):
+                print(f"Advertencia: No se encontró {path}")
+                continue
+
+            metrics = pd.read_csv(path)
+
+            # En Beta VAE, 'val_recon' es la reconstrucción pura, comparable con VAE
+            val_losses.append(metrics["val_recon"].min())
+            val_bkl.append(metrics["val_bkl"].min())
+
+        if val_losses:
+            records_beta[(instrument, dim)] = {
+                "Instrumento": instrument,
+                "Espacio Latente": dim,
+                "Error Validación": sum(val_losses) / len(val_losses),
+                "Val BKL": sum(val_bkl) / len(val_bkl),
+            }
+
+df_beta = pd.DataFrame(records_beta.values())
+df_beta = df_beta.sort_values(by=["Instrumento", "Espacio Latente"])
+
+# ==========================================
+# 2. GENERACIÓN DE GRÁFICOS
+# ==========================================
+
+# Estilo general
+plt.style.use("seaborn-v0_8-whitegrid")  # O usa 'ggplot' si prefieres
+colors_vae = "#1f77b4"  # Azul
+colors_beta = "#ff7f0e"  # Naranja
+
+# ---------------------------------------------------------
+# Gráfico 1: Val Loss vs Latent Dim por Instrumento (Comparativo)
+# ---------------------------------------------------------
+instruments = df["Instrumento"].unique()
+fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+axes = axes.flatten()
+
+for idx, instrument in enumerate(instruments):
+    ax = axes[idx]
+
+    # Datos VAE
+    subset_vae = df[df["Instrumento"] == instrument]
+    ax.plot(
+        subset_vae["Espacio Latente"],
+        subset_vae["Error Validación"],
         marker="o",
-        label=instrument,
+        linestyle="-",
+        label="VAE (Sin Beta)",
+        color=colors_vae,
     )
 
-plt.xlabel("Espacio Latente")
-plt.ylabel("Error Validación")
-plt.title("Error de Validación vs Espacio Latente por Instrumento")
-plt.legend()
-plt.grid(True)
-plt.xticks(sorted(df["Espacio Latente"].unique()))
+    # Datos Beta VAE
+    subset_beta = df_beta[df_beta["Instrumento"] == instrument]
+    ax.plot(
+        subset_beta["Espacio Latente"],
+        subset_beta["Error Validación"],
+        marker="s",
+        linestyle="--",
+        label="Beta-VAE",
+        color=colors_beta,
+    )
+
+    ax.set_title(f"{instrument}")
+    ax.set_xlabel("Dimensión Latente")
+    ax.set_ylabel("Error Validación (Reconstrucción)")
+    ax.set_xticks(sorted(df["Espacio Latente"].unique()))
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+
+plt.suptitle("Comparación de Error de Reconstrucción: VAE vs Beta-VAE", fontsize=16)
 plt.tight_layout()
-plt.savefig("imgs/val_loss_vs_latent_dim.png")
+plt.savefig("imgs/1_comparacion_por_instrumento.png")
+plt.close()
 
 # ---------------------------------------------------------
-# Plot 2: Promedio General con Desviación Estándar
+# Gráfico 2: Val Loss Mean & Std (Comparativo Global)
 # ---------------------------------------------------------
-stats = (
+# Agrupar VAE
+stats_vae = (
     df.groupby("Espacio Latente")["Error Validación"].agg(["mean", "std"]).reset_index()
 )
+# Agrupar Beta VAE
+stats_beta = (
+    df_beta.groupby("Espacio Latente")["Error Validación"]
+    .agg(["mean", "std"])
+    .reset_index()
+)
 
 plt.figure(figsize=(10, 6))
+
+# VAE Plot
 plt.errorbar(
-    stats["Espacio Latente"],
-    stats["mean"],
-    yerr=stats["std"],
+    stats_vae["Espacio Latente"],
+    stats_vae["mean"],
+    yerr=stats_vae["std"],
     fmt="-o",
     capsize=5,
-    label="Promedio general",
+    label="Promedio VAE",
+    color=colors_vae,
+    alpha=0.8,
+)
+
+# Beta VAE Plot
+plt.errorbar(
+    stats_beta["Espacio Latente"],
+    stats_beta["mean"],
+    yerr=stats_beta["std"],
+    fmt="--s",
+    capsize=5,
+    label="Promedio Beta-VAE",
+    color=colors_beta,
+    alpha=0.8,
 )
 
 plt.xlabel("Espacio Latente")
-plt.ylabel("Error de Validación Promedio")
-plt.title("Disminución del Error de Validación Promedio")
-plt.grid(True)
-plt.xticks(sorted(stats["Espacio Latente"].unique()))
+plt.ylabel("Error de Validación Promedio (Recon)")
+plt.title("Rendimiento Promedio Global: VAE vs Beta-VAE")
+plt.legend()
+plt.xticks(sorted(stats_vae["Espacio Latente"].unique()))
+plt.grid(True, alpha=0.3)
 plt.tight_layout()
-plt.savefig("imgs/val_loss_mean_std.png")
+plt.savefig("imgs/2_val_loss_mean_std_compare.png")
+plt.close()
 
 # ---------------------------------------------------------
-# Plot 3: Mejora Porcentual (Rendimientos Decrecientes)
+# Gráfico 3: Mejora Porcentual (Rendimientos Decrecientes)
 # ---------------------------------------------------------
-stats_mean = df.groupby("Espacio Latente")["Error Validación"].mean().sort_index()
-improvements = -stats_mean.pct_change() * 100
-improvements = improvements.dropna()
+# Calcular mejora porcentual VAE
+vae_mean = df.groupby("Espacio Latente")["Error Validación"].mean().sort_index()
+vae_imp = -vae_mean.pct_change() * 100
+vae_imp = vae_imp.dropna()
+
+# Calcular mejora porcentual Beta VAE
+beta_mean = df_beta.groupby("Espacio Latente")["Error Validación"].mean().sort_index()
+beta_imp = -beta_mean.pct_change() * 100
+beta_imp = beta_imp.dropna()
 
 labels = [
-    f"{prev}->{curr}" for prev, curr in zip(stats_mean.index[:-1], stats_mean.index[1:])
+    f"{prev}->{curr}" for prev, curr in zip(vae_mean.index[:-1], vae_mean.index[1:])
 ]
+x = np.arange(len(labels))
+width = 0.35
 
-plt.figure(figsize=(10, 6))
-bars = plt.bar(labels, improvements, color="#4c72b0", zorder=3)
+plt.figure(figsize=(12, 6))
+rects1 = plt.bar(
+    x - width / 2, vae_imp, width, label="VAE", color=colors_vae, alpha=0.8
+)
+rects2 = plt.bar(
+    x + width / 2, beta_imp, width, label="Beta-VAE", color=colors_beta, alpha=0.8
+)
 
-for bar in bars:
-    height = bar.get_height()
-    plt.text(
-        bar.get_x() + bar.get_width() / 2.0,
-        height + 0.1,
-        f"{height:.1f}%",
-        ha="center",
-        va="bottom",
-        fontweight="bold",
-    )
 
-plt.title("Mejora Porcentual del Error al Aumentar Dimensiones")
+# Función para poner etiquetas
+def autolabel(rects):
+    for rect in rects:
+        height = rect.get_height()
+        plt.annotate(
+            f"{height:.1f}%",
+            xy=(rect.get_x() + rect.get_width() / 2, height),
+            xytext=(0, 3),  # 3 points vertical offset
+            textcoords="offset points",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+        )
+
+
+autolabel(rects1)
+autolabel(rects2)
+
 plt.xlabel("Incremento en Espacio Latente")
 plt.ylabel("Reducción del Error (%)")
-plt.grid(axis="y", linestyle="--", alpha=0.7)
-plt.tight_layout()
-plt.savefig("imgs/improvement_percentage.png")
-
-# ---------------------------------------------------------
-# Plot 4: Gap de Generalización (Train vs Val)
-# ---------------------------------------------------------
-stats_train = df.groupby("Espacio Latente")["Error Entrenamiento"].mean()
-stats_val = df.groupby("Espacio Latente")["Error Validación"].mean()
-
-plt.figure(figsize=(10, 6))
-plt.plot(stats_val.index, stats_val.values, marker="o", label="Validación", linewidth=2)
-plt.plot(
-    stats_train.index,
-    stats_train.values,
-    marker="s",
-    label="Entrenamiento",
-    linestyle="--",
-    alpha=0.7,
-)
-
-plt.fill_between(
-    stats_val.index, stats_train.values, stats_val.values, alpha=0.1, color="gray"
-)
-
-plt.xlabel("Espacio Latente")
-plt.ylabel("Loss Promedio")
-plt.title("Gap de Generalización: Entrenamiento vs Validación")
+plt.title("Mejora Porcentual (Rendimientos Decrecientes)")
+plt.xticks(x, labels)
 plt.legend()
-plt.grid(True)
-plt.xticks(sorted(df["Espacio Latente"].unique()))
+plt.grid(axis="y", linestyle="--", alpha=0.3)
 plt.tight_layout()
-plt.savefig("imgs/train_vs_val_gap.png")
+plt.savefig("imgs/3_improvement_percentage_compare.png")
+plt.close()
 
 # ---------------------------------------------------------
-# Plot 5: Velocidad de Convergencia
+# Gráfico 4: Evolución del Error KL (Solo Beta-VAE)
 # ---------------------------------------------------------
-# Ahora esto funcionará porque parseamos 'Min Val Loss Epoch' arriba
-stats_epochs = df.groupby("Espacio Latente")["Min Val Loss Epoch"].mean()
-
 plt.figure(figsize=(10, 6))
-plt.plot(
-    stats_epochs.index, stats_epochs.values, marker="D", color="green", linestyle="-."
-)
+
+for instrument in df_beta["Instrumento"].unique():
+    subset = df_beta[df_beta["Instrumento"] == instrument]
+    plt.plot(subset["Espacio Latente"], subset["Val BKL"], marker="o", label=instrument)
 
 plt.xlabel("Espacio Latente")
-plt.ylabel("Época del Mínimo Error (Validación)")
-plt.title("Velocidad de Convergencia Promedio")
-plt.grid(True)
-plt.xticks(sorted(df["Espacio Latente"].unique()))
+plt.ylabel("Divergencia KL (Val BKL)")
+plt.title("Evolución de la Divergencia KL en Beta-VAE")
+plt.legend()
+plt.grid(True, alpha=0.3)
+plt.xticks(sorted(df_beta["Espacio Latente"].unique()))
 plt.tight_layout()
-plt.savefig("imgs/convergence_speed.png")
+plt.savefig("imgs/4_beta_kl_evolution.png")
+plt.close()
+
+print("¡Gráficos generados exitosamente en la carpeta 'imgs'!")
