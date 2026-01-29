@@ -10,4 +10,6 @@ fire>=0.5.0
 tensorboard
 tensorboardX
 multidimensional-wilcoxon-mann-whitney
+scipy
+transformers
 # kadtk
