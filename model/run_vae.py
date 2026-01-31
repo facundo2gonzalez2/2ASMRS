@@ -228,13 +228,58 @@ def train_model_base(**kwargs):
     )
 
 
+def train_model_intrsuments_from_checkpoint(**kwargs):
+    """
+    Docstring for train_model_intrsuments_from_checkpoint
+
+    :param kwargs: Description
+
+    Entrenar modelo particular de cada instrumento a partir de un checkpoint del modelo base sin beta.
+    """
+    for instrument in ["piano", "voice", "guitar", "bass"]:
+        audio_path = [
+            Path(f"data_instruments/{instrument}"),
+        ]
+
+        audio_files = []
+        for path in audio_path:
+            if path.is_file():
+                audio_files.append(path)
+            else:
+                # Load all wavfiles in directory
+                audio_files.extend(list(path.glob("*.*")))
+
+        now = datetime.now()
+
+        checkpoint_path = Path(
+            "base_model/base_model_no_beta/version_0/checkpoints"
+        ).glob("*.ckpt")
+        checkpoint_path = list(checkpoint_path)[0]
+
+        train(
+            audio_files,
+            run_name=f"{instrument}_from_checkpoint_no_beta",
+            encoder_layers=(1024, 512, 256, 128, 64, 32, 16, 8, 4),
+            latent_dim=4,
+            beta=0,
+            log_path="instruments_from_checkpoint",
+            checkpoint_path=checkpoint_path,
+            **kwargs,
+        )
+        print(
+            f"Total duration for {instrument} from checkpoint without beta training: {datetime.now() - now}"
+        )
+
+
 def main(path=None, **kwargs):
     # betas = [0.01, 0.001, 0.0001, 0.00001, 0]
     # checkpoint_path = Path("tb_logs_vae/piano/version_0/checkpoints").glob("*.ckpt")
     # checkpoint_path = list(checkpoint_path)[0]
 
     # experiment_latent_dim(kwargs)
-    train_model_base(**kwargs)
+    # train_model_base(**kwargs)
+
+    train_model_intrsuments_from_checkpoint(**kwargs)
 
 
 if __name__ == "__main__":
