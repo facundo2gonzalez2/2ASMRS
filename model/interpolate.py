@@ -6,6 +6,8 @@ import torch
 from explor_vae import generate_audio
 import soundfile as sf
 from audio_utils import get_spectrograms_from_audios
+from audio_comparator import get_cosine_similarity
+import matplotlib.pyplot as plt
 
 
 def interpolar_vae(
@@ -48,7 +50,7 @@ def interpolar_vae(
     return modelo_interpolado
 
 
-if __name__ == "__main__":
+def _first_experiment():
     # model_path_a = "tb_logs_vae/playground/version_6"
     # model_path_b = "tb_logs_vae/playground/version_7"
     model_path_a = "tb_logs_vae/model_fine_tunning_guitar/version_0"
@@ -161,3 +163,168 @@ if __name__ == "__main__":
                 )
                 sf.write(output_path, audio, hps_a["target_sampling_rate"])
                 print(f"Audio saved to: {output_path}")
+
+
+def run_interpolation_experiment(
+    model_a_path: str,
+    model_b_path: str,
+    output_dir: str,
+):
+    checkpoint_path_a = list(Path(model_a_path, "checkpoints").glob("*.ckpt"))[0]
+    with open(Path(model_a_path, "hparams.yaml")) as file:
+        hps_a = yaml.load(file, Loader=yaml.FullLoader)
+
+    checkpoint_path_b = list(Path(model_b_path, "checkpoints").glob("*.ckpt"))[0]
+    with open(Path(model_b_path, "hparams.yaml")) as file:
+        hps_b = yaml.load(file, Loader=yaml.FullLoader)
+
+    print("Cargando modelo A...")
+    model_a = VariationalAutoEncoder(
+        encoder_layers=hps_a["encoder_layers"],
+        decoder_layers=hps_a["decoder_layers"],
+        latent_dim=hps_a["latent_dim"],
+        checkpoint_path=checkpoint_path_a,
+    )
+
+    print("Cargando modelo B...")
+    model_b = VariationalAutoEncoder(
+        encoder_layers=hps_b["encoder_layers"],
+        decoder_layers=hps_b["decoder_layers"],
+        latent_dim=hps_b["latent_dim"],
+        checkpoint_path=checkpoint_path_b,
+    )
+
+    assert hps_a["encoder_layers"] == hps_b["encoder_layers"], (
+        "Las arquitecturas de los modelos no coinciden."
+    )
+    assert hps_a["decoder_layers"] == hps_b["decoder_layers"], (
+        "Las arquitecturas de los modelos no coinciden."
+    )
+    assert hps_a["latent_dim"] == hps_b["latent_dim"], (
+        "Las arquitecturas de los modelos no coinciden."
+    )
+
+    alphas = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+    audios = [
+        Path("umap_experiment/fur_elise_piano_cut.mp3"),
+        # Path("data_instruments/guitar/00_SS2-107-Ab_comp_hex.wav"),
+        # Path("umap_experiment/bass_cut.mp3"),
+    ]
+
+    for alpha in alphas:
+        print(f"Interpolando modelos con alpha={alpha}...")
+        for audio_path in audios:
+            modelo_interpolado = interpolar_vae(
+                model_a,
+                model_b,
+                alpha,
+                encoder_layers=hps_a["encoder_layers"],
+                decoder_layers=hps_a["decoder_layers"],
+                latent_dim=hps_a["latent_dim"],
+            )
+
+            modelo_interpolado.eval()
+            modelo_interpolado.encoder.eval()
+            modelo_interpolado.decoder.eval()
+
+            # Load and process audio
+            X, phases, Xmax, y = get_spectrograms_from_audios(
+                [audio_path],
+                hps_a["target_sampling_rate"],
+                hps_a["win_length"],
+                hps_a["hop_length"],
+                db_min_norm=hps_a["db_min_norm"],
+                spec_in_db=hps_a["spec_in_db"],
+                normalize_each_audio=hps_a["normalize_each_audio"],
+            )
+
+            with torch.no_grad():
+                mu, logvar = modelo_interpolado.encoder(X)
+                z = mu  # Use the mean of the latent distribution
+
+            with torch.no_grad():
+                Y = modelo_interpolado.decoder(z) * hps_a["Xmax"]
+
+            frames = Y.shape[0]
+
+            # Phase reconstruction options
+            # phase_option = "pv"
+            phase_option = "griffinlim"
+            # phase_option = "random"
+
+            audio = generate_audio(Y, hps_a, phase_option, frames)
+
+            output_path = output_dir + f"exp_{alpha}_{audio_path.stem}.wav"
+            sf.write(output_path, audio, hps_a["target_sampling_rate"])
+            print(f"Audio saved to: {output_path}")
+
+    audio_path_name = "fur_elise_piano_cut"
+    results = {}
+
+    reference_audios = [
+        Path("umap_experiment/fur_elise_piano_cut.mp3"),
+        Path("data_instruments/guitar/00_SS2-107-Ab_comp_hex.wav"),
+        Path("umap_experiment/bass_cut.mp3"),
+    ]
+
+    for alpha in alphas:
+        results[alpha] = {}
+        for audio in reference_audios:
+            print(f"Calculando similitud para alpha={alpha} y audio={audio}...")
+            interp_file = output_dir + f"exp_{alpha}_{audio_path_name}.wav"
+            sim = get_cosine_similarity(interp_file, str(audio))
+            results[alpha][str(audio)] = sim
+
+    return results
+
+
+def generate_plots_from_results(
+    results, output_path="interpolation_outputs/similarity_plot.png"
+):
+    if not results:
+        raise ValueError("results está vacío. Ejecuta la interpolación primero.")
+
+    alphas = sorted(results.keys())
+    instrument_paths = list(next(iter(results.values())).keys())
+
+    series = {instrument: [] for instrument in instrument_paths}
+    for alpha in alphas:
+        for instrument in instrument_paths:
+            series[instrument].append(results[alpha][instrument])
+
+    plt.figure(figsize=(10, 6))
+    for instrument, sims in series.items():
+        label = Path(instrument).stem
+        plt.plot(alphas, sims, marker="o", label=label)
+
+    plt.title("Similitud de coseno vs alpha")
+    plt.xlabel("alpha")
+    plt.ylabel("similitud")
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(output_path)
+    print(f"Plot guardado en: {output_path}")
+
+
+if __name__ == "__main__":
+    model_a_path = "instruments_from_checkpoint/piano_from_checkpoint_no_beta/version_0"
+    model_b_path = (
+        "instruments_from_checkpoint/guitar_from_checkpoint_no_beta/version_0"
+    )
+
+    output_dir = "interpolation_outputs/"
+
+    results = run_interpolation_experiment(
+        model_a_path,
+        model_b_path,
+        output_dir,
+    )
+
+    print("Resultados de similitud de coseno:")
+    for alpha, sims in results.items():
+        print(f"Alpha {alpha}:")
+        for audio, sim in sims.items():
+            print(f"  {audio}: Similitud = {sim:.4f}")
+
+    generate_plots_from_results(results)
