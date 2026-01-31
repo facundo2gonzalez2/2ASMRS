@@ -24,3 +24,6 @@ experiment_latent_dim_beta_guitar_small/
 experiment_latent_dim_beta_bass_small/
 
 base_model/
+
+instruments_from_checkpoint/
+interpolation_outputs/
