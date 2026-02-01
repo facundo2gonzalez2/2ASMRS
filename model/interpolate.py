@@ -207,8 +207,8 @@ def run_interpolation_experiment(
     alphas = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
     audios = [
         Path("umap_experiment/fur_elise_piano_cut.mp3"),
-        # Path("data_instruments/guitar/00_SS2-107-Ab_comp_hex.wav"),
-        # Path("umap_experiment/bass_cut.mp3"),
+        Path("data_instruments/guitar/00_SS2-107-Ab_comp_hex.wav"),
+        Path("umap_experiment/bass_cut.mp3"),
     ]
 
     for alpha in alphas:
@@ -258,28 +258,25 @@ def run_interpolation_experiment(
             sf.write(output_path, audio, hps_a["target_sampling_rate"])
             print(f"Audio saved to: {output_path}")
 
-    audio_path_name = "fur_elise_piano_cut"
+    audio_path_names = ["fur_elise_piano_cut", "00_SS2-107-Ab_comp_hex", "bass_cut"]
     results = {}
 
-    reference_audios = [
-        Path("umap_experiment/fur_elise_piano_cut.mp3"),
-        Path("data_instruments/guitar/00_SS2-107-Ab_comp_hex.wav"),
-        Path("umap_experiment/bass_cut.mp3"),
-    ]
+    reference_audio = Path("umap_experiment/fur_elise_piano_cut.mp3")
 
     for alpha in alphas:
         results[alpha] = {}
-        for audio in reference_audios:
-            print(f"Calculando similitud para alpha={alpha} y audio={audio}...")
+        for audio_path_name in audio_path_names:
+            print(
+                f"Calculando similitud para alpha={alpha} y audio={audio_path_name}..."
+            )
             interp_file = output_dir + f"exp_{alpha}_{audio_path_name}.wav"
-            sim = get_cosine_similarity(interp_file, str(audio))
-            results[alpha][str(audio)] = sim
-
+            sim = get_cosine_similarity(interp_file, str(reference_audio))
+            results[alpha][audio_path_name] = sim
     return results
 
 
 def generate_plots_from_results(
-    results, output_path="interpolation_outputs/similarity_plot.png"
+    results, output_path="interpolation_outputs_2/similarity_plot.png"
 ):
     if not results:
         raise ValueError("results está vacío. Ejecuta la interpolación primero.")
@@ -313,7 +310,7 @@ if __name__ == "__main__":
         "instruments_from_checkpoint/guitar_from_checkpoint_no_beta/version_0"
     )
 
-    output_dir = "interpolation_outputs/"
+    output_dir = "interpolation_outputs_2/"
 
     results = run_interpolation_experiment(
         model_a_path,
