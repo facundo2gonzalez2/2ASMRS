@@ -98,7 +98,7 @@ def save_latentscore(Z, hop_length, sr, path):
 
 
 def spectrogram2audio(
-    Y, db_min_norm, phase, hop_length, win_length, in_db, griffinlim=False
+    Y, db_min_norm, phase, hop_length, win_length, in_db, griffinlim=True
 ):
     if in_db:
         Y_ = torch.sqrt(10 ** ((Y + db_min_norm) / 10)) * torch.exp(1j * phase)

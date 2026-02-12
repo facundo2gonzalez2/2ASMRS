@@ -5,7 +5,7 @@ import yaml
 import torch
 from explor_vae import generate_audio
 import soundfile as sf
-from audio_utils import get_spectrograms_from_audios
+from audio_utils import get_spectrograms_from_audios, save_audio
 from audio_comparator import get_cosine_similarity
 import matplotlib.pyplot as plt
 
@@ -207,14 +207,14 @@ def run_interpolation_experiment(
     alphas = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
     audios = [
         Path("umap_experiment/fur_elise_piano_cut.mp3"),
-        Path("data_instruments/guitar/00_SS2-107-Ab_comp_hex.wav"),
-        Path("umap_experiment/bass_cut.mp3"),
+        # Path("data_instruments/guitar/00_SS2-107-Ab_comp_hex.wav"),
+        # Path("umap_experiment/bass_cut.mp3"),
     ]
 
     for alpha in alphas:
         print(f"Interpolando modelos con alpha={alpha}...")
         for audio_path in audios:
-            modelo_interpolado = interpolar_vae(
+            modelo_interpolado: VariationalAutoEncoder = interpolar_vae(
                 model_a,
                 model_b,
                 alpha,
@@ -223,8 +223,6 @@ def run_interpolation_experiment(
                 latent_dim=hps_a["latent_dim"],
             )
 
-            modelo_interpolado.eval()
-            modelo_interpolado.encoder.eval()
             modelo_interpolado.decoder.eval()
 
             # Load and process audio
@@ -238,45 +236,45 @@ def run_interpolation_experiment(
                 normalize_each_audio=hps_a["normalize_each_audio"],
             )
 
-            with torch.no_grad():
-                mu, logvar = modelo_interpolado.encoder(X)
-                z = mu  # Use the mean of the latent distribution
-
-            with torch.no_grad():
-                Y = modelo_interpolado.decoder(z) * hps_a["Xmax"]
-
-            frames = Y.shape[0]
-
-            # Phase reconstruction options
-            # phase_option = "pv"
-            phase_option = "griffinlim"
-            # phase_option = "random"
-
-            audio = generate_audio(Y, hps_a, phase_option, frames)
+            predicted_specgram = modelo_interpolado.predict(X) * Xmax
 
             output_path = output_dir + f"exp_{alpha}_{audio_path.stem}.wav"
-            sf.write(output_path, audio, hps_a["target_sampling_rate"])
+
+            save_audio(
+                predicted_specgram,
+                hps_a["db_min_norm"],
+                phases,
+                hps_a["hop_length"],
+                hps_a["win_length"],
+                hps_a["target_sampling_rate"],
+                output_path,
+                hps_a["spec_in_db"],
+            )
+
             print(f"Audio saved to: {output_path}")
 
-    audio_path_names = ["fur_elise_piano_cut", "00_SS2-107-Ab_comp_hex", "bass_cut"]
+    audio_path_name = "fur_elise_piano_cut"
     results = {}
 
-    reference_audio = Path("umap_experiment/fur_elise_piano_cut.mp3")
+    reference_audios = [
+        Path("umap_experiment/fur_elise_piano_cut.mp3"),
+        Path("data_instruments/guitar/00_SS2-107-Ab_comp_hex.wav"),
+        Path("umap_experiment/bass_cut.mp3"),
+    ]
 
     for alpha in alphas:
         results[alpha] = {}
-        for audio_path_name in audio_path_names:
-            print(
-                f"Calculando similitud para alpha={alpha} y audio={audio_path_name}..."
-            )
+        for audio in reference_audios:
+            print(f"Calculando similitud para alpha={alpha} y audio={audio}...")
             interp_file = output_dir + f"exp_{alpha}_{audio_path_name}.wav"
-            sim = get_cosine_similarity(interp_file, str(reference_audio))
-            results[alpha][audio_path_name] = sim
+            sim = get_cosine_similarity(interp_file, str(audio))
+            results[alpha][str(audio)] = sim
+
     return results
 
 
 def generate_plots_from_results(
-    results, output_path="interpolation_outputs_2/similarity_plot.png"
+    results, output_path="interpolation_outputs_4/similarity_plot.png"
 ):
     if not results:
         raise ValueError("results está vacío. Ejecuta la interpolación primero.")
@@ -310,7 +308,7 @@ if __name__ == "__main__":
         "instruments_from_checkpoint/guitar_from_checkpoint_no_beta/version_0"
     )
 
-    output_dir = "interpolation_outputs_2/"
+    output_dir = "interpolation_outputs_4/"
 
     results = run_interpolation_experiment(
         model_a_path,
