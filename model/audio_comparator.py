@@ -2,6 +2,8 @@ import torch
 import torchaudio
 from transformers import Wav2Vec2FeatureExtractor, AutoModel
 from scipy.spatial.distance import cosine
+import numpy as np
+from scipy import linalg
 
 # --- Configuración ---
 # Usamos el modelo MERT-v1-95M (más ligero) o MERT-v1-330M (más preciso)
@@ -38,6 +40,20 @@ def load_and_preprocess_audio(path):
     return inputs
 
 
+def get_matrix_embedding(path):
+    """
+    Pasa el audio por MERT y obtiene la matriz de embeddings temporales.
+    """
+    inputs = load_and_preprocess_audio(path)
+
+    with torch.no_grad():
+        outputs = model(**inputs, output_hidden_states=True)
+
+    # Devolemos la matriz con forma (Tiempo, Dimensiones)
+    last_hidden_state = outputs.last_hidden_state
+    return last_hidden_state.squeeze().numpy()
+
+
 def get_embedding(path):
     """
     Pasa el audio por MERT y obtiene el vector promedio.
@@ -58,6 +74,98 @@ def get_embedding(path):
     return embedding.squeeze().numpy()
 
 
+def calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
+    """
+    Calcula la Frechet Distance entre dos distribuciones multivariadas.
+    Basado en la ecuación (1) del paper [2]:
+    FAD = ||mu_r - mu_t||^2 + tr(Sigma_r + Sigma_t - 2*sqrt(Sigma_r * Sigma_t))
+    """
+    # 1. Distancia euclidiana al cuadrado entre las medias
+    diff = mu1 - mu2
+    mean_term = np.dot(diff, diff)
+
+    # 2. Término de la traza (Covarianza)
+    # Calculamos la raíz cuadrada del producto de covarianzas
+    covmean, _ = linalg.sqrtm(sigma1.dot(sigma2), disp=False)
+
+    # Manejo de errores numéricos si el resultado tiene componentes imaginarios
+    if not np.isfinite(covmean).all():
+        offset = np.eye(sigma1.shape) * eps
+        covmean = linalg.sqrtm((sigma1 + offset).dot(sigma2 + offset))
+
+    # Si hay una parte imaginaria pequeña debido a errores numéricos, la descartamos
+    if np.iscomplexobj(covmean):  # type: ignore
+        if not np.isclose(np.diagonal(covmean).imag, 0, atol=1e-3).all():  # type: ignore
+            raise ValueError(
+                "Las matrices de covarianza resultaron en números complejos significativos."
+            )
+        covmean = covmean.real  # type: ignore
+
+    tr_covmean = np.trace(covmean)  # type: ignore
+
+    # Fórmula completa
+    return mean_term + np.trace(sigma1) + np.trace(sigma2) - 2 * tr_covmean
+
+
+def get_audio_similarity_fad(embeddings_a, embeddings_b):
+    """
+    Calcula la FAD entre dos pistas de audio basándose en sus embeddings temporales.
+
+    Args:
+        embeddings_a (np.array): Matriz de forma (N_frames, Dimensiones) para el Audio A.
+        embeddings_b (np.array): Matriz de forma (M_frames, Dimensiones) para el Audio B.
+
+    Returns:
+        float: Distancia Frechet (menor es más similar).
+    """
+    # Validaciones previas
+    if embeddings_a.ndim != 2 or embeddings_b.ndim != 2:
+        raise ValueError(
+            "Los embeddings deben ser matrices 2D (Frames x Features). No uses el vector promediado."
+        )
+
+    # Calcular estadísticas (Mu y Sigma) para el Audio A
+    mu_a = np.mean(embeddings_a, axis=0)
+    sigma_a = np.cov(embeddings_a, rowvar=False)
+
+    # Calcular estadísticas (Mu y Sigma) para el Audio B
+    mu_b = np.mean(embeddings_b, axis=0)
+    sigma_b = np.cov(embeddings_b, rowvar=False)
+
+    # Calcular FAD
+    fad_score = calculate_frechet_distance(mu_a, sigma_a, mu_b, sigma_b)
+
+    return fad_score
+
+
+def get_fad_distance_between_files(file_a, file_b):
+    emb_a = get_matrix_embedding(file_a)
+    emb_b = get_matrix_embedding(file_b)
+    return get_audio_similarity_fad(emb_a, emb_b)
+
+
+def test_fad_score():
+    # --- Ejemplo de uso simulado ---
+    # Supongamos que usas MERT y obtienes una matriz de (Tiempo, 768)
+    # Ejemplo: Audio A dura 10 seg, Audio B dura 12 seg.
+    # Dimensiones de MERT suelen ser 768 [5] o 1024 dependiendo del modelo.
+    # Simulación de embeddings (reemplaza esto con tu función de extracción MERT)
+    reference_file = "./outputs/reference_tracks/c-major-scale-90710.mp3"
+    instrument_file = (
+        "./outputs/interpolate_fine_tuned/exp_0.0_guitar_c-major-scale-90710.wav"
+    )
+
+    instrument_file = (
+        "./outputs/interpolate_fine_tuned/exp_1.0_guitar_c-major-scale-90710.wav"
+    )
+
+    emb_audio_1 = get_matrix_embedding(reference_file)
+    emb_audio_2 = get_matrix_embedding(instrument_file)
+
+    score = get_audio_similarity_fad(emb_audio_1, emb_audio_2)
+    print(f"Distancia Frechet: {score}")
+
+
 def get_cosine_similarity(path_1, path_2):
     emb1 = get_embedding(path_1)
     emb2 = get_embedding(path_2)
@@ -65,40 +173,26 @@ def get_cosine_similarity(path_1, path_2):
     return similarity
 
 
-def compare_interpolation(
+def evaluate_interpolation_reconstruction(
     reference_file: str,
-    files_instrument_a: list[str],
-    files_instrument_b: list[str],
-    witness_file: str,
+    reconstruced_per_alpha: list[str],
 ):
-    """
-    Asumiento que files_instrument_a y files_instrument_b son listas de archivos de tipo:
-    ["guitar_output_alpha_0.0.wav", "guitar_output_alpha_0.25.wav", ..., "guitar_output_alpha_1.0.wav"]
-    ["piano_output_alpha_0.0.wav", "piano_output_alpha_0.25.wav", ..., "piano_output_alpha_1.0.wav"]
-    Y witness_file es un archivo de audio real de otro instrumento diferente.
-    """
-    embeddings_a = [get_embedding(f) for f in files_instrument_a]
-    embeddings_b = [get_embedding(f) for f in files_instrument_b]
-    witness_embedding = get_embedding(witness_file)
+    embeddings = [get_embedding(f) for f in reconstruced_per_alpha]
     reference_embedding = get_embedding(reference_file)
 
-    print("--- Comparación de interpolaciones ---")
+    print("--- Comparación de interpolación por alfa ---")
     print("Instrumento A vs Referencia:")
-    for i, emb in enumerate(embeddings_a):
+    for i, emb in enumerate(embeddings):
         similarity = 1 - cosine(emb, reference_embedding)
-        print(f" Alpha {i / (len(embeddings_a) - 1):.2f}: Similitud = {similarity:.4f}")
-
-    print("\nInstrumento B vs Referencia:")
-    for i, emb in enumerate(embeddings_b):
-        similarity = 1 - cosine(emb, reference_embedding)
-        print(f" Alpha {i / (len(embeddings_b) - 1):.2f}: Similitud = {similarity:.4f}")
-
-    print("\nTestigo vs Referencia:")
-    similarity = 1 - cosine(witness_embedding, reference_embedding)
-    print(f"Similitud = {similarity:.4f}")
+        fad_distance = get_fad_distance_between_files(
+            reference_file, reconstruced_per_alpha[i]
+        )
+        print(
+            f" Alpha {i / (len(embeddings) - 1):.2f}: Similitud = {similarity:.4f}, FAD = {fad_distance:.4f}"
+        )
 
 
-def compare_two_audios(file_1: str, file_2: str):
+def get_embedding_similarity_between(file_1: str, file_2: str):
     # 1. Obtener embeddings
     print("Procesando audios...")
     # Nota: Asegúrate de tener archivos reales o el script fallará al cargar
@@ -136,7 +230,7 @@ if __name__ == "__main__":
 
     reference_file = "./outputs/reference_tracks/c-major-scale-90710.mp3"
 
-    files_instrument_a = [
+    reconstruced_per_alpha = [
         "./outputs/interpolate_fine_tuned/exp_0.0_guitar_c-major-scale-90710.wav",
         "./outputs/interpolate_fine_tuned/exp_0.25_guitar_c-major-scale-90710.wav",
         "./outputs/interpolate_fine_tuned/exp_0.5_guitar_c-major-scale-90710.wav",
@@ -144,16 +238,4 @@ if __name__ == "__main__":
         "./outputs/interpolate_fine_tuned/exp_1.0_guitar_c-major-scale-90710.wav",
     ]
 
-    files_instrument_b = [
-        "./outputs/interpolate_fine_tuned/exp_0.0_piano_c-major-scale-90710.wav",
-        "./outputs/interpolate_fine_tuned/exp_0.25_piano_c-major-scale-90710.wav",
-        "./outputs/interpolate_fine_tuned/exp_0.5_piano_c-major-scale-90710.wav",
-        "./outputs/interpolate_fine_tuned/exp_0.75_piano_c-major-scale-90710.wav",
-        "./outputs/interpolate_fine_tuned/exp_1.0_piano_c-major-scale-90710.wav",
-    ]
-
-    witness_file = "./outputs/witness_tracks/violin_c-major-scale-90710.wav"
-
-    compare_interpolation(
-        reference_file, files_instrument_a, files_instrument_b, witness_file
-    )
+    evaluate_interpolation_reconstruction(reference_file, reconstruced_per_alpha)
