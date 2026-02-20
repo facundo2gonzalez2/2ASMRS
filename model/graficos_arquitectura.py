@@ -2,9 +2,20 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--output_dir",
+    type=str,
+    default="imgs",
+    help="Directorio de salida para los gráficos",
+)
+args = parser.parse_args()
+output_dir = args.output_dir
 
 # Crear carpeta de imágenes si no existe
-os.makedirs("imgs", exist_ok=True)
+os.makedirs(output_dir, exist_ok=True)
 
 # ==========================================
 # 1. CONFIGURACIÓN Y CARGA DE DATOS
@@ -158,7 +169,7 @@ for idx, instrument in enumerate(instruments):
 
 plt.suptitle("Comparación de Error de Reconstrucción: VAE vs Beta-VAE", fontsize=16)
 plt.tight_layout()
-plt.savefig("imgs/1_comparacion_por_instrumento.png")
+plt.savefig(f"{output_dir}/1_comparacion_por_instrumento.png")
 plt.close()
 
 # ---------------------------------------------------------
@@ -208,7 +219,7 @@ plt.legend()
 plt.xticks(sorted(stats_vae["Espacio Latente"].unique()))
 plt.grid(True, alpha=0.3)
 plt.tight_layout()
-plt.savefig("imgs/2_val_loss_mean_std_compare.png")
+plt.savefig(f"{output_dir}/2_val_loss_mean_std_compare.png")
 plt.close()
 
 # ---------------------------------------------------------
@@ -264,7 +275,7 @@ plt.xticks(x, labels)
 plt.legend()
 plt.grid(axis="y", linestyle="--", alpha=0.3)
 plt.tight_layout()
-plt.savefig("imgs/3_improvement_percentage_compare.png")
+plt.savefig(f"{output_dir}/3_improvement_percentage_compare.png")
 plt.close()
 
 # ---------------------------------------------------------
@@ -283,7 +294,7 @@ plt.legend()
 plt.grid(True, alpha=0.3)
 plt.xticks(sorted(df_beta["Espacio Latente"].unique()))
 plt.tight_layout()
-plt.savefig("imgs/4_beta_kl_evolution.png")
+plt.savefig(f"{output_dir}/4_beta_kl_evolution.png")
 plt.close()
 
-print("¡Gráficos generados exitosamente en la carpeta 'imgs'!")
+print(f"¡Gráficos generados exitosamente en la carpeta '{output_dir}'!")

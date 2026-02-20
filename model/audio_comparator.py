@@ -228,14 +228,14 @@ if __name__ == "__main__":
     #     "./outputs/interpolate_fine_tuned/exp_0.0_guitar_c-major-scale-90710.wav",
     # )
 
-    reference_file = "./outputs/reference_tracks/c-major-scale-90710.mp3"
+    reference_file = "./outputs/reference_tracks/c-major-scale-child-102262.mp3"
 
     reconstruced_per_alpha = [
-        "./outputs/interpolate_fine_tuned/exp_0.0_guitar_c-major-scale-90710.wav",
-        "./outputs/interpolate_fine_tuned/exp_0.25_guitar_c-major-scale-90710.wav",
-        "./outputs/interpolate_fine_tuned/exp_0.5_guitar_c-major-scale-90710.wav",
-        "./outputs/interpolate_fine_tuned/exp_0.75_guitar_c-major-scale-90710.wav",
-        "./outputs/interpolate_fine_tuned/exp_1.0_guitar_c-major-scale-90710.wav",
+        "./outputs/interpolate_fine_tuned/exp_0.0_voice_c-major-scale-child-102262.wav",
+        "./outputs/interpolate_fine_tuned/exp_0.25_voice_c-major-scale-child-102262.wav",
+        "./outputs/interpolate_fine_tuned/exp_0.5_voice_c-major-scale-child-102262.wav",
+        "./outputs/interpolate_fine_tuned/exp_0.75_voice_c-major-scale-child-102262.wav",
+        "./outputs/interpolate_fine_tuned/exp_1.0_voice_c-major-scale-child-102262.wav",
     ]
 
     evaluate_interpolation_reconstruction(reference_file, reconstruced_per_alpha)
