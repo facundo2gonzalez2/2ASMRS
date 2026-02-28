@@ -27,6 +27,7 @@ experiment_latent_dim_beta_bass_small/
 base_model/
 
 instruments_from_checkpoint/
+instruments_from_scratch/
 interpolation_outputs*/
 
 results_*/
