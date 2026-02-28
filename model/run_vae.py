@@ -140,7 +140,7 @@ def train(
         save_latentscore(logvar.cpu().numpy(), hop_length, target_sampling_rate, path)
 
 
-def experiment_latent_dim(kwargs):
+def experiment_latent_dim_instruments(kwargs):
     instruments_paths = [
         Path("data_instruments_small/piano"),
         Path("data_instruments_small/voice"),
@@ -178,6 +178,55 @@ def experiment_latent_dim(kwargs):
                     log_path=f"experiment_latent_dim_beta_{path.name}_small",
                     **kwargs,
                 )
+        print(f"Total duration: {datetime.now() - now}")
+        print("=" * 60)
+        print("\n\n")
+
+
+def experiment_latent_dim_base_model(kwargs, beta=0.001):
+    instruments_paths = [
+        Path("data_instruments/piano"),
+        Path("data_instruments/voice"),
+        Path("data_instruments/guitar"),
+        Path("data_instruments/bass"),
+    ]
+
+    audio_files = []
+    for path in instruments_paths:
+        if path.is_file():
+            audio_files.append(path)
+        else:
+            # Load all wavfiles in directory
+            audio_files.extend(list(path.glob("*.*")))
+
+    for it in range(5):
+        print(f"================= EXPERIMENT ROUND {it + 1} =================")
+        now = datetime.now()
+        arqs = [
+            ((1024, 512, 256, 128, 64, 32, 16, 8, 4, 2), 2),
+            ((1024, 512, 256, 128, 64, 32, 16, 8, 4, 3), 3),
+            ((1024, 512, 256, 128, 64, 32, 16, 8, 4), 4),
+            ((1024, 512, 256, 128, 64, 32, 16, 8, 6), 6),
+            ((1024, 512, 256, 128, 64, 32, 16, 8), 8),
+        ]
+
+        for encoder_layers, latent_dim in arqs:
+            run_name = (
+                f"beta_vae_latentdim_{latent_dim}"
+                if beta > 0
+                else f"vae_latentdim_{latent_dim}"
+            )
+            print("=" * 60)
+            print(f"Running experiment: {run_name}")
+            train(
+                audio_files,
+                run_name=run_name,
+                encoder_layers=encoder_layers,
+                latent_dim=latent_dim,
+                beta=beta,
+                log_path="experiment_latent_dim_base_model",
+                **kwargs,
+            )
         print(f"Total duration: {datetime.now() - now}")
         print("=" * 60)
         print("\n\n")
@@ -282,6 +331,38 @@ def train_model_instruments(from_checkpoint=False, beta=0.0, **kwargs):
         )
 
 
+def experiment_multiple_betas_base_model(kwargs):
+    instruments_paths = [
+        Path("data_instruments/piano"),
+        Path("data_instruments/voice"),
+        Path("data_instruments/guitar"),
+        Path("data_instruments/bass"),
+    ]
+
+    audio_files = []
+    for path in instruments_paths:
+        if path.is_file():
+            audio_files.append(path)
+        else:
+            # Load all wavfiles in directory
+            audio_files.extend(list(path.glob("*.*")))
+
+    betas = [0.01, 0.001, 0.0001, 0.00001, 0]
+
+    for beta in betas:
+        now = datetime.now()
+        train(
+            audio_files,
+            run_name=f"base_model_beta_{beta}",
+            encoder_layers=(1024, 512, 256, 128, 64, 32, 16, 8, 4),
+            latent_dim=4,
+            beta=beta,
+            log_path="base_model_beta_variation",
+            **kwargs,
+        )
+        print(f"Total duration for base model with beta {beta}: {datetime.now() - now}")
+
+
 def main(path=None, **kwargs):
     # betas = [0.01, 0.001, 0.0001, 0.00001, 0]
     # checkpoint_path = Path("tb_logs_vae/piano/version_0/checkpoints").glob("*.ckpt")
@@ -291,9 +372,13 @@ def main(path=None, **kwargs):
     # train_model_base(**kwargs)
 
     # train_model_instruments(from_checkpoint=True, beta=0, **kwargs)
-    train_model_instruments(from_checkpoint=True, beta=0.001, **kwargs)
-    train_model_instruments(from_checkpoint=False, beta=0, **kwargs)
-    train_model_instruments(from_checkpoint=False, beta=0.001, **kwargs)
+    # train_model_instruments(from_checkpoint=True, beta=0.001, **kwargs)
+    # train_model_instruments(from_checkpoint=False, beta=0, **kwargs)
+    # train_model_instruments(from_checkpoint=False, beta=0.001, **kwargs)
+
+    experiment_multiple_betas_base_model(kwargs)
+    experiment_latent_dim_base_model(kwargs, beta=0.001)
+    experiment_latent_dim_base_model(kwargs, beta=0)
 
 
 if __name__ == "__main__":
