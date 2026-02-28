@@ -228,14 +228,20 @@ def train_model_base(**kwargs):
     )
 
 
-def train_model_intrsuments_from_checkpoint(**kwargs):
+def train_model_instruments(from_checkpoint=False, beta=0.0, **kwargs):
     """
-    Docstring for train_model_intrsuments_from_checkpoint
+    Entrenar modelo particular de cada instrumento.
 
+    :param from_checkpoint: Si es True entrena a partir del último checkpoint guardado de base_model
+    :param beta: El valor de beta para el loss KL
     :param kwargs: Description
-
-    Entrenar modelo particular de cada instrumento a partir de un checkpoint del modelo base sin beta.
     """
+    log_path = (
+        "instruments_from_checkpoint" if from_checkpoint else "instruments_from_scratch"
+    )
+    beta_str = "beta" if beta > 0 else "no_beta"
+    ckpt_str = "from_checkpoint" if from_checkpoint else "from_scratch"
+
     for instrument in ["piano", "voice", "guitar", "bass"]:
         audio_path = [
             Path(f"data_instruments/{instrument}"),
@@ -251,23 +257,28 @@ def train_model_intrsuments_from_checkpoint(**kwargs):
 
         now = datetime.now()
 
-        checkpoint_path = Path(
-            "base_model/base_model_no_beta/version_0/checkpoints"
-        ).glob("*.ckpt")
-        checkpoint_path = list(checkpoint_path)[0]
+        checkpoint_path = None
+        if from_checkpoint:
+            checkpoint_path = Path(
+                f"base_model/base_model_{beta_str}/version_0/checkpoints"
+            ).glob("*.ckpt")
+            checkpoint_path = list(checkpoint_path)[0]
+
+        run_name = f"{instrument}_{ckpt_str}_{beta_str}"
 
         train(
             audio_files,
-            run_name=f"{instrument}_from_checkpoint_no_beta",
+            run_name=run_name,
             encoder_layers=(1024, 512, 256, 128, 64, 32, 16, 8, 4),
             latent_dim=4,
-            beta=0,
-            log_path="instruments_from_checkpoint",
+            beta=beta,
+            log_path=log_path,
             checkpoint_path=checkpoint_path,
             **kwargs,
         )
+        mode_str = "with" if beta > 0 else "without"
         print(
-            f"Total duration for {instrument} from checkpoint without beta training: {datetime.now() - now}"
+            f"Total duration for {instrument} {ckpt_str.replace('_', ' ')} {mode_str} beta training: {datetime.now() - now}"
         )
 
 
@@ -279,7 +290,10 @@ def main(path=None, **kwargs):
     # experiment_latent_dim(kwargs)
     # train_model_base(**kwargs)
 
-    train_model_intrsuments_from_checkpoint(**kwargs)
+    # train_model_instruments(from_checkpoint=True, beta=0, **kwargs)
+    train_model_instruments(from_checkpoint=True, beta=0.001, **kwargs)
+    train_model_instruments(from_checkpoint=False, beta=0, **kwargs)
+    train_model_instruments(from_checkpoint=False, beta=0.001, **kwargs)
 
 
 if __name__ == "__main__":
