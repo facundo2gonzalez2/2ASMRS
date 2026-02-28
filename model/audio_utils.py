@@ -18,7 +18,16 @@ from torchaudio.functional import resample
 import librosa
 
 
-def get_waveform(path, target_sr, duration=None):
+def get_waveform(
+    path,
+    target_sr,
+    duration=None,
+    trim_silence=False,
+    remove_all_silence=False,
+    silence_top_db=35,
+    silence_frame_length=2048,
+    silence_hop_length=512,
+):
     # Load waveform using torchaudio, if sample rate is different from target_sr, resample
     waveform, original_sr = torchaudio.load(path)
     if original_sr != target_sr:
@@ -26,6 +35,37 @@ def get_waveform(path, target_sr, duration=None):
         waveform = resample(waveform, original_sr, target_sr)
     if waveform.ndim > 1:
         waveform = waveform[0, :]  # Use left channel
+
+    waveform_np = waveform.numpy()
+
+    if remove_all_silence:
+        intervals = librosa.effects.split(
+            waveform_np,
+            top_db=silence_top_db,
+            frame_length=silence_frame_length,
+            hop_length=silence_hop_length,
+        )
+        if len(intervals) > 0:
+            waveform_np = np.concatenate(
+                [waveform_np[start:end] for start, end in intervals], axis=0
+            )
+        elif trim_silence:
+            waveform_np, _ = librosa.effects.trim(
+                waveform_np,
+                top_db=silence_top_db,
+                frame_length=silence_frame_length,
+                hop_length=silence_hop_length,
+            )
+    elif trim_silence:
+        waveform_np, _ = librosa.effects.trim(
+            waveform_np,
+            top_db=silence_top_db,
+            frame_length=silence_frame_length,
+            hop_length=silence_hop_length,
+        )
+
+    waveform = torch.from_numpy(waveform_np)
+
     if duration is not None:
         # Trim to custom duration
         waveform = waveform[: int(target_sr * duration)]
@@ -56,12 +96,25 @@ def get_spectrograms_from_audios(
     db_min_norm=None,
     spec_in_db=True,
     normalize_each_audio=False,
+    trim_silence=False,
+    remove_all_silence=False,
+    silence_top_db=35,
+    silence_frame_length=2048,
+    silence_hop_length=512,
 ):
     X = []
     y = []
     phases = []
     for i, filename in enumerate(audio_path_list):
-        waveform = get_waveform(filename, target_sr)
+        waveform = get_waveform(
+            filename,
+            target_sr,
+            trim_silence=trim_silence,
+            remove_all_silence=remove_all_silence,
+            silence_top_db=silence_top_db,
+            silence_frame_length=silence_frame_length,
+            silence_hop_length=silence_hop_length,
+        )
         phase, S = get_specgram(waveform, win_length, hop_length, spec_in_db=spec_in_db)
         if normalize_each_audio:
             S = S / S.max()
