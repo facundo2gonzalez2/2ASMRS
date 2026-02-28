@@ -281,7 +281,7 @@ def run_comparison(
 
 def run_model_base_comparison(
     base_model_path="base_model/base_model_beta/version_0",
-    output_img_path="umap_experiment/base_model_instruments_umap_new_beta.png",
+    output_img_path="umap_experiment/base_model_instruments_umap_new_beta_test.png",
     trim_silence=True,
     remove_all_silence=True,
     silence_top_db=35,
@@ -296,10 +296,10 @@ def run_model_base_comparison(
     max_stats_frames_per_pair=10000,
 ):
     instrument_folders = {
-        "Piano": "data_instruments_tiny/piano",
-        "Guitar": "data_instruments_tiny/guitar",
-        "Voice": "data_instruments_tiny/voice",
-        "Bass": "data_instruments_tiny/bass",
+        "Piano": "data_instruments_small/piano",
+        "Guitar": "data_instruments_small/guitar",
+        "Voice": "data_instruments_small/voice",
+        "Bass": "data_instruments_small/bass",
     }
 
     all_audio_paths = []
