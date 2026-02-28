@@ -4,6 +4,7 @@ logs/
 data/
 data_instruments/
 data_instruments_small/
+data_instruments_tiny/
 data_instruments.zip
 data_instruments_small.zip
 exported_models/
