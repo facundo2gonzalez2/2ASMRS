@@ -1,22 +1,89 @@
 from fire import Fire
 from pathlib import Path
 import yaml
+import torch
+import soundfile as sf
 
 from audio_utils import (
     get_spectrograms_from_audios,
     save_audio,
+    spectrogram2audio,
 )
 from VariationalAutoEncoder import VariationalAutoEncoder
 
 
 def predict_audio(
-    audio_path_list,
-    model_path,
-    output_path,
+    audio_path_list=None,
+    model_path=None,
+    output_path=None,
     db_min_norm=-60,
     spec_in_db=True,
     normalize_each_audio=False,
+    predicted_specgram=None,
+    hps=None,
+    phase_option="random",
+    frames=None,
+    return_audio=False,
 ):
+    if predicted_specgram is not None:
+        if hps is None:
+            raise ValueError("hps es requerido cuando predicted_specgram no es None")
+
+        hl = hps["hop_length"]
+        wl = hps["win_length"]
+
+        if frames is None:
+            frames = predicted_specgram.shape[0]
+
+        Y_ = torch.nn.functional.interpolate(
+            predicted_specgram[:, None, :], (wl // 2 + 1,)
+        )[:, 0, :]
+
+        if phase_option == "pv":
+            griffinlim = False
+            phase = torch.rand(Y_.shape[1]) * torch.pi * 2
+            grid = torch.meshgrid(
+                torch.arange(0, frames, dtype=torch.float64),
+                torch.zeros(Y_.shape[1], dtype=torch.float64),
+            )[0]
+            freqs = torch.linspace(0, hps["target_sampling_rate"] // 2, wl // 2 + 1)
+            dt = hl / hps["target_sampling_rate"]
+            phase = phase + freqs * 2 * torch.pi * dt * grid
+        elif phase_option == "random":
+            griffinlim = False
+            phase = (torch.rand(Y_.shape) * 2 - 1) * torch.pi
+        elif phase_option == "griffinlim":
+            phase = (torch.rand(Y_.shape) * 2 - 1) * torch.pi
+            griffinlim = True
+        else:
+            raise ValueError(f"phase_option inválido: {phase_option}")
+
+        audio = (
+            spectrogram2audio(
+                Y_,
+                hps["db_min_norm"],
+                phase,
+                hl,
+                wl,
+                hps["spec_in_db"],
+                griffinlim=griffinlim,
+            )
+            .cpu()
+            .numpy()
+        )
+
+        if output_path is not None:
+            sf.write(output_path, audio, hps["target_sampling_rate"])
+
+        if return_audio:
+            return audio
+        return None
+
+    if audio_path_list is None or model_path is None or output_path is None:
+        raise ValueError(
+            "audio_path_list, model_path y output_path son requeridos en modo inferencia desde audio"
+        )
+
     checkpoint_path = list(Path(model_path, "checkpoints").glob("*.ckpt"))[0]
     with open(Path(model_path, "hparams.yaml")) as file:
         hps_a = yaml.load(file, Loader=yaml.FullLoader)
@@ -58,8 +125,26 @@ def predict_audio(
 
 
 def main(path=None, **kwargs):
-    model_path = "instruments_from_checkpoint/guitar_from_checkpoint_no_beta/version_0"
-    path = Path("data_short_tracks/guitar-c-major-scale.wav")
+    voice_model_path = (
+        "instruments_from_checkpoint/voice_from_checkpoint_no_beta/version_0"
+    )
+    piano_model_path = (
+        "instruments_from_checkpoint/piano_from_checkpoint_no_beta/version_0"
+    )
+    guitar_model_path = (
+        "instruments_from_checkpoint/guitar_from_checkpoint_no_beta/version_0"
+    )
+    bass_model_path = (
+        "instruments_from_checkpoint/bass_from_checkpoint_no_beta/version_0"
+    )
+
+    voice_path = Path("data_test/voice/voice_test.wav")
+    piano_path = Path("data_test/piano_test.wav")
+    guitar_path = Path("data_test/guitar/guitar_test.wav")
+    bass_path = Path("data_test/bass/bass_test.wav")
+
+    path = piano_path
+    model_path = piano_model_path
 
     if path.is_file():
         audio_list = [path]
@@ -70,7 +155,7 @@ def main(path=None, **kwargs):
     predict_audio(
         audio_list,
         model_path,
-        output_path="data_short_tracks/guitar-c-major-scale-predicted.wav",
+        output_path="test.wav",
     )
 
 
