@@ -712,13 +712,13 @@ def generate_plots(
 def main():
     config = {
         "project_root": ".",
-        "data_root": "data_instruments",
-        "output_dir": "interpolation_regime_experiment",
-        "instruments": "piano,guitar,voice,bass",
+        "data_root": "data_test",
+        "output_dir": "interpolation_regime_experiment_beta_vs_no_beta",
+        "instruments": "piano,bass,voice",
         "anchor_instrument": "piano",
-        "regimes": "checkpoint_no_beta,checkpoint_beta,scratch_no_beta,scratch_beta",
+        "regimes": "checkpoint_no_beta,checkpoint_beta",
         "alphas": "0.0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0",
-        "samples_per_instrument": 12,
+        "samples_per_instrument": 1,
         "seed": 42,
         "include_fad": True,
     }

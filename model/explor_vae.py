@@ -3,52 +3,11 @@ from pathlib import Path
 import yaml
 import torch
 import numpy as np
-from audio_utils import spectrogram2audio
+from vae_predict import predict_audio
 import matplotlib.pyplot as plt
 import librosa
 import librosa.display
 import soundfile as sf
-
-
-def generate_audio(Y, hps, phase_option, frames):
-    """Generate audio from spectrogram using the specified phase reconstruction method"""
-    fc = 1
-    hl = hps["hop_length"] * fc
-    wl = hps["win_length"] * fc
-    Y_ = torch.nn.functional.interpolate(Y[:, None, :], (wl // 2 + 1,))[:, 0, :]
-
-    if phase_option == "pv":
-        griffinlim = False
-        phase = torch.rand(Y_.shape[1]) * torch.pi * 2
-        grid = torch.meshgrid(
-            torch.arange(0, frames, dtype=torch.float64),
-            torch.zeros(Y_.shape[1], dtype=torch.float64),
-        )[0]
-        freqs = torch.linspace(0, hps["target_sampling_rate"] // 2, wl // 2 + 1)
-        dt = hl / hps["target_sampling_rate"]
-        phase = phase + freqs * 2 * torch.pi * dt * grid
-    elif phase_option == "random":
-        griffinlim = False
-        phase = (torch.rand(Y_.shape) * 2 - 1) * torch.pi
-    elif phase_option == "griffinlim":
-        phase = (torch.rand(Y_.shape) * 2 - 1) * torch.pi
-        griffinlim = True
-
-    audio = (
-        spectrogram2audio(
-            Y_,
-            hps["db_min_norm"],
-            phase,
-            hl,
-            wl,
-            hps["spec_in_db"],
-            griffinlim=griffinlim,
-        )
-        .cpu()
-        .numpy()
-    )
-
-    return audio
 
 
 if __name__ == "__main__":
@@ -110,10 +69,22 @@ if __name__ == "__main__":
     phase_option = "random"
 
     # Generate audio from model A
-    audio_a = generate_audio(Y_a, hps_a, phase_option, frames)
+    audio_a = predict_audio(
+        predicted_specgram=Y_a,
+        hps=hps_a,
+        phase_option=phase_option,
+        frames=frames,
+        return_audio=True,
+    )
 
     # Generate audio from model B
-    audio_b = generate_audio(Y_b, hps_b, phase_option, frames)
+    audio_b = predict_audio(
+        predicted_specgram=Y_b,
+        hps=hps_b,
+        phase_option=phase_option,
+        frames=frames,
+        return_audio=True,
+    )
 
     # Save both audio files
     sf.write(

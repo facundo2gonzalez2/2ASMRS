@@ -9,6 +9,7 @@ from scipy import linalg
 # Usamos el modelo MERT-v1-95M (más ligero) o MERT-v1-330M (más preciso)
 MODEL_ID = "m-a-p/MERT-v1-95M"
 TARGET_SAMPLE_RATE = 24000  # MERT fue entrenado con audios a 24k
+FAD_SIMILARITY_K = 585.0
 
 print(f"Cargando modelo {MODEL_ID}...")
 processor = Wav2Vec2FeatureExtractor.from_pretrained(MODEL_ID, trust_remote_code=True)
@@ -109,14 +110,15 @@ def calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
 
 def get_audio_similarity_fad(embeddings_a, embeddings_b):
     """
-    Calcula la FAD entre dos pistas de audio basándose en sus embeddings temporales.
+    Calcula una similitud basada en FAD entre dos pistas de audio.
+    Se transforma la distancia con: similitud = exp(-distancia / k).
 
     Args:
         embeddings_a (np.array): Matriz de forma (N_frames, Dimensiones) para el Audio A.
         embeddings_b (np.array): Matriz de forma (M_frames, Dimensiones) para el Audio B.
 
     Returns:
-        float: Distancia Frechet (menor es más similar).
+        float: Similitud en rango (0, 1], donde mayor es más similar.
     """
     # Validaciones previas
     if embeddings_a.ndim != 2 or embeddings_b.ndim != 2:
@@ -132,10 +134,18 @@ def get_audio_similarity_fad(embeddings_a, embeddings_b):
     mu_b = np.mean(embeddings_b, axis=0)
     sigma_b = np.cov(embeddings_b, rowvar=False)
 
-    # Calcular FAD
-    fad_score = calculate_frechet_distance(mu_a, sigma_a, mu_b, sigma_b)
+    # Calcular distancia FAD y transformarla a similitud
+    fad_distance = calculate_frechet_distance(mu_a, sigma_a, mu_b, sigma_b)
+    fad_similarity = float(np.exp(-fad_distance / FAD_SIMILARITY_K))
 
-    return fad_score
+    return fad_similarity
+
+
+def get_audio_similarit_fad(embeddings_a, embeddings_b):
+    """
+    Alias compatible con typo histórico del nombre de la función.
+    """
+    return get_audio_similarity_fad(embeddings_a, embeddings_b)
 
 
 def get_fad_distance_between_files(file_a, file_b):
@@ -163,7 +173,7 @@ def test_fad_score():
     emb_audio_2 = get_matrix_embedding(instrument_file)
 
     score = get_audio_similarity_fad(emb_audio_1, emb_audio_2)
-    print(f"Distancia Frechet: {score}")
+    print(f"Similitud FAD: {score}")
 
 
 def get_cosine_similarity(path_1, path_2):
