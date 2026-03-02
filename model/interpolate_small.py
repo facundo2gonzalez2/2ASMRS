@@ -1,0 +1,350 @@
+from VariationalAutoEncoder import VariationalAutoEncoder
+import collections
+from pathlib import Path
+import yaml
+import torch
+from explor_vae import generate_audio
+import soundfile as sf
+from audio_utils import get_spectrograms_from_audios, save_audio
+from audio_comparator import get_cosine_similarity
+import matplotlib.pyplot as plt
+
+
+def interpolar_vae(
+    model_a: VariationalAutoEncoder,
+    model_b: VariationalAutoEncoder,
+    alpha: float,
+    encoder_layers,
+    decoder_layers,
+    latent_dim,
+) -> VariationalAutoEncoder:
+    # 1. Obtener los diccionarios de estado (parámetros)
+    theta_a = model_a.state_dict()
+    theta_b = model_b.state_dict()
+
+    # 2. Crear un nuevo diccionario para los pesos interpolados
+    theta_interp = collections.OrderedDict()
+
+    # 3. Iterar sobre todos los parámetros
+    for key in theta_a:
+        if key in theta_b:
+            # 4. Calcular la interpolación lineal (LERP)
+            theta_interp[key] = (1.0 - alpha) * theta_a[key] + alpha * theta_b[key]
+        else:
+            # Esto no debería pasar si las arquitecturas son idénticas
+            raise KeyError(
+                f"Clave '{key}' no encontrada en model_b. Las arquitecturas no coinciden."
+            )
+
+    # 5. Crear una nueva instancia del modelo VAE
+    #    ¡Importante! No pasamos 'checkpoint_path' aquí.
+    modelo_interpolado = VariationalAutoEncoder(
+        encoder_layers=encoder_layers,
+        decoder_layers=decoder_layers,
+        latent_dim=latent_dim,
+    )
+
+    # 6. Cargar los pesos interpolados en el nuevo modelo
+    modelo_interpolado.load_state_dict(theta_interp)
+
+    return modelo_interpolado
+
+
+def _first_experiment():
+    # model_path_a = "tb_logs_vae/playground/version_6"
+    # model_path_b = "tb_logs_vae/playground/version_7"
+    model_path_a = "tb_logs_vae/model_fine_tunning_guitar/version_0"
+    model_path_b = "tb_logs_vae/model_fine_tunning/version_0"
+    output_dir = "outputs/interpolate_fine_tuned/"
+
+    checkpoint_path_a = list(Path(model_path_a, "checkpoints").glob("*.ckpt"))[0]
+    with open(Path(model_path_a, "hparams.yaml")) as file:
+        hps_a = yaml.load(file, Loader=yaml.FullLoader)
+
+    checkpoint_path_b = list(Path(model_path_b, "checkpoints").glob("*.ckpt"))[0]
+    with open(Path(model_path_b, "hparams.yaml")) as file:
+        hps_b = yaml.load(file, Loader=yaml.FullLoader)
+
+    print("Cargando modelo A...")
+    model_a = VariationalAutoEncoder(
+        encoder_layers=hps_a["encoder_layers"],
+        decoder_layers=hps_a["decoder_layers"],
+        latent_dim=hps_a["latent_dim"],
+        checkpoint_path=checkpoint_path_a,
+    )
+
+    print("Cargando modelo B...")
+    model_b = VariationalAutoEncoder(
+        encoder_layers=hps_b["encoder_layers"],
+        decoder_layers=hps_b["decoder_layers"],
+        latent_dim=hps_b["latent_dim"],
+        checkpoint_path=checkpoint_path_b,
+    )
+
+    assert hps_a["encoder_layers"] == hps_b["encoder_layers"], (
+        "Las arquitecturas de los modelos no coinciden."
+    )
+    assert hps_a["decoder_layers"] == hps_b["decoder_layers"], (
+        "Las arquitecturas de los modelos no coinciden."
+    )
+    assert hps_a["latent_dim"] == hps_b["latent_dim"], (
+        "Las arquitecturas de los modelos no coinciden."
+    )
+
+    # --- 3. Interpola los modelos ---
+    alphas = [0.0, 0.25, 0.5, 0.75, 1.0]
+    encoders = [("guitar", model_a), ("voice", model_b), ("interpolated", None)]
+    audios = [
+        Path("data/playground/c-major-scale-90710.mp3"),
+        Path("data/playground/c-major-scale-child-102262.mp3"),
+    ]
+    for alpha in alphas:
+        for encoder_name, encoder_model in encoders:
+            for audio_path in audios:
+                print(f"Interpolando modelos con alpha={alpha}...")
+                modelo_interpolado = interpolar_vae(
+                    model_a,
+                    model_b,
+                    alpha,
+                    encoder_layers=hps_a["encoder_layers"],
+                    decoder_layers=hps_a["decoder_layers"],
+                    latent_dim=hps_a["latent_dim"],
+                )
+                print("¡Interpolación completada!")
+
+                # --- 4. Usa el modelo interpolado para predicción ---
+                modelo_interpolado.eval()
+                modelo_interpolado.decoder.eval()
+
+                if encoder_model is None:
+                    encoder_model = modelo_interpolado
+
+                encoder_model.eval()
+                encoder_model.encoder.eval()
+
+                # Load and process audio
+                X, phases, Xmax, y = get_spectrograms_from_audios(
+                    [audio_path],
+                    hps_a["target_sampling_rate"],
+                    hps_a["win_length"],
+                    hps_a["hop_length"],
+                    db_min_norm=hps_a["db_min_norm"],
+                    spec_in_db=hps_a["spec_in_db"],
+                    normalize_each_audio=hps_a["normalize_each_audio"],
+                )
+
+                # Step 1: Encode audio using model A's encoder
+                print(f"Encoding audio with model {encoder_name} encoder...")
+                with torch.no_grad():
+                    mu, logvar = encoder_model.encoder(X)
+                    z = mu  # Use the mean of the latent distribution
+
+                print(f"Encoded {z.shape[0]} frames with latent dimension {z.shape[1]}")
+
+                # Step 2: Decode using the interpolated model's decoder
+                print("Decoding with interpolated model's decoder...")
+                with torch.no_grad():
+                    Y = modelo_interpolado.decoder(z) * hps_a["Xmax"]
+
+                frames = Y.shape[0]
+
+                # Phase reconstruction options
+                # phase_option = "pv"
+                # phase_option = 'griffinlim'
+                phase_option = "random"
+
+                print(
+                    f"Generating audio with {frames} frames using phase method: {phase_option}"
+                )
+                audio = generate_audio(Y, hps_a, phase_option, frames)
+
+                output_path = (
+                    output_dir + f"exp_{alpha}_{encoder_name}_{audio_path.stem}.wav"
+                )
+                sf.write(output_path, audio, hps_a["target_sampling_rate"])
+                print(f"Audio saved to: {output_path}")
+
+
+def run_interpolation_experiment(
+    model_a_path: str,
+    model_b_path: str,
+    output_dir: str,
+    base_model_path: str = "base_model/base_model_no_beta/version_0",
+    encoder_with_base_model: bool = False,
+):
+    checkpoint_path_a = list(Path(model_a_path, "checkpoints").glob("*.ckpt"))[0]
+    with open(Path(model_a_path, "hparams.yaml")) as file:
+        hps_a = yaml.load(file, Loader=yaml.FullLoader)
+
+    checkpoint_path_b = list(Path(model_b_path, "checkpoints").glob("*.ckpt"))[0]
+    with open(Path(model_b_path, "hparams.yaml")) as file:
+        hps_b = yaml.load(file, Loader=yaml.FullLoader)
+
+    checkpoint_base_model = list(Path(base_model_path, "checkpoints").glob("*.ckpt"))[0]
+    with open(Path(base_model_path, "hparams.yaml")) as file:
+        hps_base_model = yaml.load(file, Loader=yaml.FullLoader)
+
+    print("Cargando modelo A...")
+    model_a = VariationalAutoEncoder(
+        encoder_layers=hps_a["encoder_layers"],
+        decoder_layers=hps_a["decoder_layers"],
+        latent_dim=hps_a["latent_dim"],
+        checkpoint_path=checkpoint_path_a,
+    )
+
+    print("Cargando modelo B...")
+    model_b = VariationalAutoEncoder(
+        encoder_layers=hps_b["encoder_layers"],
+        decoder_layers=hps_b["decoder_layers"],
+        latent_dim=hps_b["latent_dim"],
+        checkpoint_path=checkpoint_path_b,
+    )
+
+    print("Cargando base_model...")
+    base_model = VariationalAutoEncoder(
+        encoder_layers=hps_base_model["encoder_layers"],
+        decoder_layers=hps_base_model["decoder_layers"],
+        latent_dim=hps_base_model["latent_dim"],
+        checkpoint_path=checkpoint_base_model,
+    )
+
+    assert hps_a["encoder_layers"] == hps_b["encoder_layers"], (
+        "Las arquitecturas de los modelos no coinciden."
+    )
+    assert hps_a["decoder_layers"] == hps_b["decoder_layers"], (
+        "Las arquitecturas de los modelos no coinciden."
+    )
+    assert hps_a["latent_dim"] == hps_b["latent_dim"], (
+        "Las arquitecturas de los modelos no coinciden."
+    )
+
+    alphas = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+    audios = [
+        Path("piano-c-major-scale.wav"),
+        # Path("data_instruments/guitar/00_SS2-107-Ab_comp_hex.wav"),
+        # Path("umap_experiment/bass_cut.mp3"),
+    ]
+
+    for alpha in alphas:
+        print(f"Interpolando modelos con alpha={alpha}...")
+        for audio_path in audios:
+            modelo_interpolado: VariationalAutoEncoder = interpolar_vae(
+                model_a,
+                model_b,
+                alpha,
+                encoder_layers=hps_a["encoder_layers"],
+                decoder_layers=hps_a["decoder_layers"],
+                latent_dim=hps_a["latent_dim"],
+            )
+
+            modelo_interpolado.decoder.eval()
+            base_model.encoder.eval()
+
+            # Load and process audio
+            X, phases, Xmax, y = get_spectrograms_from_audios(
+                [audio_path],
+                hps_a["target_sampling_rate"],
+                hps_a["win_length"],
+                hps_a["hop_length"],
+                db_min_norm=hps_a["db_min_norm"],
+                spec_in_db=hps_a["spec_in_db"],
+                normalize_each_audio=hps_a["normalize_each_audio"],
+            )
+
+            if encoder_with_base_model:
+                # 1 encode with base model
+                with torch.no_grad():
+                    mu, logvar = base_model.encoder(X)
+                    z = mu  # Use the mean of the latent distribution
+
+                # 2 decode with interpolated model
+                with torch.no_grad():
+                    predicted_specgram = modelo_interpolado.decoder(z) * Xmax
+            else:
+                predicted_specgram = modelo_interpolado.predict(X) * Xmax
+
+            output_path = output_dir + f"exp_{alpha}_{audio_path.stem}.wav"
+
+            save_audio(
+                predicted_specgram,
+                hps_a["db_min_norm"],
+                phases,
+                hps_a["hop_length"],
+                hps_a["win_length"],
+                hps_a["target_sampling_rate"],
+                output_path,
+                hps_a["spec_in_db"],
+            )
+
+            print(f"Audio saved to: {output_path}")
+
+    audio_path_name = "piano-c-major-scale"
+    results = {}
+
+    reference_audios = [
+        Path("piano-c-major-scale-predicted-no_beta.wav"),
+        Path("guitar-c-major-scale-predicted.wav"),
+        Path("umap_experiment/bass_cut.mp3"),
+    ]
+
+    for alpha in alphas:
+        results[alpha] = {}
+        for audio in reference_audios:
+            print(f"Calculando similitud para alpha={alpha} y audio={audio}...")
+            interp_file = output_dir + f"exp_{alpha}_{audio_path_name}.wav"
+            sim = get_cosine_similarity(interp_file, str(audio))
+            results[alpha][str(audio)] = sim
+
+    return results
+
+
+def generate_plots_from_results(
+    results, output_path="interpolation_outputs_6/similarity_plot.png"
+):
+    if not results:
+        raise ValueError("results está vacío. Ejecuta la interpolación primero.")
+
+    alphas = sorted(results.keys())
+    instrument_paths = list(next(iter(results.values())).keys())
+
+    series = {instrument: [] for instrument in instrument_paths}
+    for alpha in alphas:
+        for instrument in instrument_paths:
+            series[instrument].append(results[alpha][instrument])
+
+    plt.figure(figsize=(10, 6))
+    for instrument, sims in series.items():
+        label = Path(instrument).stem
+        plt.plot(alphas, sims, marker="o", label=label)
+
+    plt.title("Similitud de coseno vs alpha")
+    plt.xlabel("alpha")
+    plt.ylabel("similitud")
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(output_path)
+    print(f"Plot guardado en: {output_path}")
+
+
+if __name__ == "__main__":
+    model_a_path = "instruments_from_checkpoint/piano_from_checkpoint_no_beta/version_0"
+    model_b_path = (
+        "instruments_from_checkpoint/guitar_from_checkpoint_no_beta/version_0"
+    )
+
+    output_dir = "interpolation_outputs_6/"
+
+    results = run_interpolation_experiment(
+        model_a_path,
+        model_b_path,
+        output_dir,
+    )
+
+    print("Resultados de similitud de coseno:")
+    for alpha, sims in results.items():
+        print(f"Alpha {alpha}:")
+        for audio, sim in sims.items():
+            print(f"  {audio}: Similitud = {sim:.4f}")
+
+    generate_plots_from_results(results)
