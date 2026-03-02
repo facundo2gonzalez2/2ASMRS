@@ -58,13 +58,8 @@ def predict_audio(
 
 
 def main(path=None, **kwargs):
-    # model_path = "tb_logs_vae/fur_elise_guitar/version_1"
-    # model_path = "tb_logs_vae/fur_elise_piano/version_1"
-    model_path = "tb_logs_vae/playground/version_0"
-
-    path = Path("data/playground/pianoclassic.mp3")
-    # path = Path("data/fur_elise_piano.mp3")
-    # path = Path("data/mozart_sonata_piano.mp3")
+    model_path = "instruments_from_checkpoint/guitar_from_checkpoint_no_beta/version_0"
+    path = Path("data_short_tracks/guitar-c-major-scale.wav")
 
     if path.is_file():
         audio_list = [path]
@@ -73,7 +68,9 @@ def main(path=None, **kwargs):
         audio_list = list(path.glob("*.*"))
 
     predict_audio(
-        audio_list, model_path, output_path="outputs/playground_reconstructed.mp3"
+        audio_list,
+        model_path,
+        output_path="data_short_tracks/guitar-c-major-scale-predicted.wav",
     )
 
 

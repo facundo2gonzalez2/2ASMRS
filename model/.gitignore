@@ -30,4 +30,7 @@ instruments_from_checkpoint/
 instruments_from_scratch/
 interpolation_outputs*/
 
+interpolation_regime_experiment/
+data_short_tracks/
+
 results_*/
