@@ -450,6 +450,43 @@ def train_model_instruments_with_full_latent_dim(
         )
 
 
+def test_train_only_guitar(kwargs):
+    audio_path = [
+        Path("data_instruments/guitar_mono"),
+    ]
+
+    audio_files = []
+    for path in audio_path:
+        if path.is_file():
+            audio_files.append(path)
+        else:
+            # Load all wavfiles in directory
+            audio_files.extend(list(path.glob("*.*")))
+
+    now = datetime.now()
+
+    train(
+        audio_files,
+        run_name="guitar_only_no_beta",
+        encoder_layers=(1024, 512, 256, 128, 64, 32, 16, 8, 4),
+        latent_dim=4,
+        beta=0,
+        log_path="guitar_only",
+        **kwargs,
+    )
+
+    train(
+        audio_files,
+        run_name="guitar_only_beta",
+        encoder_layers=(1024, 512, 256, 128, 64, 32, 16, 8, 4),
+        latent_dim=4,
+        beta=0.001,
+        log_path="guitar_only",
+        **kwargs,
+    )
+    print(f"Total duration for guitar only training: {datetime.now() - now}")
+
+
 def main(path=None, **kwargs):
     # betas = [0.01, 0.001, 0.0001, 0.00001, 0]
     # checkpoint_path = Path("tb_logs_vae/piano/version_0/checkpoints").glob("*.ckpt")
@@ -471,11 +508,13 @@ def main(path=None, **kwargs):
     # train_model_instruments(from_checkpoint=True, beta=0.0001, **kwargs)
     # train_model_base(beta=0.0001, **kwargs)
 
-    train_base_model_with_full_latent_dim(kwargs)
-    train_model_instruments_with_full_latent_dim(
-        from_checkpoint=True, beta=0.001, **kwargs
-    )
-    train_model_instruments_with_full_latent_dim(from_checkpoint=True, beta=0, **kwargs)
+    # train_base_model_with_full_latent_dim(kwargs)
+    # train_model_instruments_with_full_latent_dim(
+    #     from_checkpoint=True, beta=0.001, **kwargs
+    # )
+    # train_model_instruments_with_full_latent_dim(from_checkpoint=True, beta=0, **kwargs)
+
+    test_train_only_guitar(kwargs)
 
 
 if __name__ == "__main__":

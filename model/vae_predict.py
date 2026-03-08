@@ -24,6 +24,7 @@ def predict_audio(
     phase_option="random",
     frames=None,
     return_audio=False,
+    Xmax_overload=None,
 ):
     if predicted_specgram is not None:
         if hps is None:
@@ -110,7 +111,9 @@ def predict_audio(
     )
     vae.decoder.eval()
 
-    predicted_specgram = vae.predict(X) * Xmax
+    predicted_specgram = vae.predict(X) * (
+        Xmax if Xmax_overload is None else Xmax_overload
+    )
 
     save_audio(
         predicted_specgram,
@@ -140,11 +143,11 @@ def main(path=None, **kwargs):
 
     voice_path = Path("data_test/voice/voice_test.wav")
     piano_path = Path("data_test/piano_test.wav")
-    guitar_path = Path("data_test/guitar/guitar_test.wav")
+    guitar_path = Path("data_test/guitar_test.wav")
     bass_path = Path("data_test/bass/bass_test.wav")
 
-    path = piano_path
-    model_path = piano_model_path
+    path = guitar_path
+    model_path = guitar_model_path
 
     if path.is_file():
         audio_list = [path]
@@ -152,11 +155,7 @@ def main(path=None, **kwargs):
         # Load all wavfiles in directory
         audio_list = list(path.glob("*.*"))
 
-    predict_audio(
-        audio_list,
-        model_path,
-        output_path="test.wav",
-    )
+    predict_audio(audio_list, model_path, output_path="test.wav", Xmax_overload=200.0)
 
 
 if __name__ == "__main__":

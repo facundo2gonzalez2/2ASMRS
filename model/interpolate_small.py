@@ -18,6 +18,7 @@ def interpolar_vae(
     encoder_layers,
     decoder_layers,
     latent_dim,
+    interpolation_mode: str = "linear",
 ) -> VariationalAutoEncoder:
     # 1. Obtener los diccionarios de estado (parámetros)
     theta_a = model_a.state_dict()
@@ -26,11 +27,59 @@ def interpolar_vae(
     # 2. Crear un nuevo diccionario para los pesos interpolados
     theta_interp = collections.OrderedDict()
 
+    def _slerp_tensor(tensor_a: torch.Tensor, tensor_b: torch.Tensor, t: float):
+        # SLERP está definido para vectores en una esfera; aplanamos y luego restauramos forma.
+        original_dtype = tensor_a.dtype
+        vec_a = tensor_a.reshape(-1)
+        vec_b = tensor_b.reshape(-1)
+
+        if not torch.is_floating_point(vec_a):
+            return tensor_a if t < 0.5 else tensor_b
+
+        vec_a_f = vec_a.float()
+        vec_b_f = vec_b.float()
+
+        norm_a = torch.norm(vec_a_f)
+        norm_b = torch.norm(vec_b_f)
+        if norm_a.item() == 0.0 or norm_b.item() == 0.0:
+            interpolated = (1.0 - t) * vec_a_f + t * vec_b_f
+            return interpolated.reshape_as(tensor_a).to(dtype=original_dtype)
+
+        unit_a = vec_a_f / norm_a
+        unit_b = vec_b_f / norm_b
+
+        dot = torch.clamp(torch.sum(unit_a * unit_b), -1.0, 1.0)
+
+        # Si el ángulo es muy pequeño (o casi opuesto), hacemos fallback a LERP por estabilidad.
+        if torch.abs(dot) > 0.9995:
+            interpolated = (1.0 - t) * vec_a_f + t * vec_b_f
+        else:
+            theta = torch.acos(dot)
+            sin_theta = torch.sin(theta)
+            w1 = torch.sin((1.0 - t) * theta) / sin_theta
+            w2 = torch.sin(t * theta) / sin_theta
+            interpolated = w1 * vec_a_f + w2 * vec_b_f
+
+        return interpolated.reshape_as(tensor_a).to(dtype=original_dtype)
+
+    if interpolation_mode not in {"linear", "slerp"}:
+        raise ValueError(
+            f"interpolation_mode inválido: {interpolation_mode}. Usa 'linear' o 'slerp'."
+        )
+
     # 3. Iterar sobre todos los parámetros
     for key in theta_a:
         if key in theta_b:
-            # 4. Calcular la interpolación lineal (LERP)
-            theta_interp[key] = (1.0 - alpha) * theta_a[key] + alpha * theta_b[key]
+            # 4. Calcular la interpolación configurada (lineal o SLERP)
+            if interpolation_mode == "slerp":
+                theta_interp[key] = _slerp_tensor(theta_a[key], theta_b[key], alpha)
+            else:
+                tensor_a = theta_a[key]
+                tensor_b = theta_b[key]
+                if not torch.is_floating_point(tensor_a):
+                    theta_interp[key] = tensor_a if alpha < 0.5 else tensor_b
+                else:
+                    theta_interp[key] = (1.0 - alpha) * tensor_a + alpha * tensor_b
         else:
             # Esto no debería pasar si las arquitecturas son idénticas
             raise KeyError(
@@ -317,6 +366,8 @@ def run_random_interpolation_experiment(
     random_seed: int = 42,
     sampling_mode: str = "encoded",
     reference_audio_paths=None,
+    model_a_xmax: float = 230.0,
+    model_b_xmax: float = 120.0,
 ):
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -354,9 +405,9 @@ def run_random_interpolation_experiment(
     assert hps_a["latent_dim"] == hps_b["latent_dim"], (
         "Las arquitecturas de los modelos no coinciden."
     )
-    assert hps_a["latent_dim"] == 4, (
-        "Este experimento está configurado para latent_dim=4."
-    )
+    # assert hps_a["latent_dim"] == 4, (
+    #     "Este experimento está configurado para latent_dim=4."
+    # )
 
     torch.manual_seed(random_seed)
     latent_dim = hps_a["latent_dim"]
@@ -372,6 +423,8 @@ def run_random_interpolation_experiment(
                     instrument_candidates.append(instrument)
 
             discovered_files = []
+            # Support common audio extensions found in this repository.
+            supported_exts = [".wav", ".mp3", ".flac", ".ogg", ".m4a"]
             for instrument in instrument_candidates:
                 source_dirs = [
                     Path("data_instruments", instrument),
@@ -379,7 +432,11 @@ def run_random_interpolation_experiment(
                 ]
                 for source_dir in source_dirs:
                     if source_dir.exists():
-                        files = sorted(source_dir.glob("*.[wm][ap]3"))
+                        files = sorted(
+                            file
+                            for file in source_dir.iterdir()
+                            if file.is_file() and file.suffix.lower() in supported_exts
+                        )
                         if files:
                             discovered_files.append(files[0])
                             break
@@ -407,6 +464,8 @@ def run_random_interpolation_experiment(
             z_base = 0.5 * (
                 mu_a.mean(dim=0, keepdim=True) + mu_b.mean(dim=0, keepdim=True)
             )
+            print(f"Latent vector obtenido por encoding de referencia: {z_base.shape}")
+            print(z_base)
     else:
         raise ValueError(
             f"sampling_mode inválido: {sampling_mode}. Usa 'encoded' o 'gaussian'."
@@ -414,10 +473,12 @@ def run_random_interpolation_experiment(
 
     alphas = [round(i * 0.1, 1) for i in range(11)]
     phase_option = "griffinlim"
-    model_xmax = float(hps_a.get("Xmax", 1.0))
+    # model_xmax = float(hps_a.get("Xmax", 1.0))
     generated_audios = []
 
     for alpha in alphas:
+        # model_xmax = (1.0 - alpha) * model_a_xmax + alpha * model_b_xmax
+        model_xmax = (model_a_xmax + model_b_xmax) / 2.0
         print(f"Interpolando modelos con alpha={alpha}...")
         modelo_interpolado: VariationalAutoEncoder = interpolar_vae(
             model_a,
@@ -426,10 +487,14 @@ def run_random_interpolation_experiment(
             encoder_layers=hps_a["encoder_layers"],
             decoder_layers=hps_a["decoder_layers"],
             latent_dim=hps_a["latent_dim"],
+            interpolation_mode="slerp",
         )
 
         modelo_interpolado.eval()
         modelo_interpolado.decoder.eval()
+
+        # meter un poco de ruido al z_base:
+        z_base += torch.randn_like(z_base) * 0.05
 
         with torch.no_grad():
             z = z_base.repeat(num_frames, 1)
@@ -510,32 +575,63 @@ def generate_plots_from_results(
     print(f"Plot guardado en: {output_path}")
 
 
+def cross_interpolation(random_seed, sampling_mode, xmax_values):
+    instruments = ["piano", "voice", "guitar", "bass"]
+    pairs = [(src, tgt) for src in instruments for tgt in instruments if src != tgt]
+
+    for checkpoint_str in ["checkpoint", "scratch"]:
+        for beta_str in ["beta", "no_beta"]:
+            for source, target in pairs:
+                model_a_path = f"instruments_from_{checkpoint_str}/{source}_from_{checkpoint_str}_{beta_str}/version_0"
+                model_b_path = f"instruments_from_{checkpoint_str}/{target}_from_{checkpoint_str}_{beta_str}/version_0"
+
+                output_dir = f"AudiosInterpolacion/{beta_str}/{checkpoint_str}/interpolation_{source}_to_{target}/"
+
+                run_random_interpolation_experiment(
+                    model_a_path,
+                    model_b_path,
+                    output_dir,
+                    random_seed=random_seed,
+                    sampling_mode=sampling_mode,
+                    model_a_xmax=xmax_values[source],
+                    model_b_xmax=xmax_values[target],
+                    num_frames=48,
+                )
+
+
 if __name__ == "__main__":
-    for with_beta in [False, True]:
-        for source, target in [
-            ("piano", "voice"),
-            ("voice", "piano"),
-            ("piano", "bass"),
-            ("bass", "piano"),
-            ("bass", "voice"),
-            ("voice", "bass"),
-        ]:
-            model_a_path = f"instruments_from_checkpoint/{source}_from_checkpoint_{'beta' if with_beta else 'no_beta'}/version_0"
-            model_b_path = f"instruments_from_checkpoint/{target}_from_checkpoint_{'beta' if with_beta else 'no_beta'}/version_0"
+    instrument_a = "piano"
+    instrument_b = "voice"
+    beta = True
+    sampling_mode = 0  # 0 para encoded, 1 para gaussian
 
-            output_dir = f"asd/interpolation_outputs_random_{source}_to_{target}_{'beta' if with_beta else 'no_beta'}/"
+    xmax_values = {
+        "guitar": 230.0,
+        "piano": 130.0,
+        "voice": 140.0,
+        "bass": 120.0,
+    }
 
-            results = run_random_interpolation_experiment(
-                model_a_path, model_b_path, output_dir, random_seed=43
-            )
+    model_a_path = f"instruments_from_checkpoint_big/{instrument_a}_from_checkpoint_{'beta' if beta else 'no_beta'}/version_0"
+    model_b_path = f"instruments_from_checkpoint_big/{instrument_b}_from_checkpoint_{'beta' if beta else 'no_beta'}/version_0"
 
-    # model_a_path = "instruments_from_checkpoint/piano_from_checkpoint_beta/version_0"
-    # model_b_path = "instruments_from_checkpoint/voice_from_checkpoint_beta/version_0"
+    output_dir = f"interpolation_outputs_random_{instrument_a}_to_{instrument_b}_{'beta' if beta else 'no_beta'}/"
 
-    # output_dir = "interpolation_outputs_random_piano_to_voice_beta_gaussian/"
+    run_random_interpolation_experiment(
+        model_a_path,
+        model_b_path,
+        output_dir,
+        sampling_mode="encoded" if sampling_mode == 0 else "gaussian",
+        num_frames=64,
+        random_seed=42,
+        model_a_xmax=xmax_values[instrument_a],
+        model_b_xmax=xmax_values[instrument_b],
+    )
 
-    # results = run_random_interpolation_experiment(
-    #     model_a_path, model_b_path, output_dir, sampling_mode="gaussian"
+    # cross_interpolation(
+    #     random_seed=44,
+    #     sampling_mode="encoded" if sampling_mode == 0 else "gaussian",
+    #     xmax_values=xmax_values,
     # )
 
     # print("Resultados de similitud de coseno:")
