@@ -23,7 +23,6 @@ def count_total_duration(dataset_path, extension: str = ".wav"):
         except Exception as e:
             print(f"Error processing {file_path}: {e}")
 
-    print("-" * 30)
     print("Total Duration:")
     print(f"Seconds: {total_duration:.2f}")
     print(f"Minutes: {total_duration / 60:.2f}")
@@ -80,7 +79,7 @@ if __name__ == "__main__":
     # Based on previous exploration, dataset is at model/data/VocalSet
     # If this script is in model/, then data/VocalSet is correct relative path
     dataset_path = os.path.join(current_dir, "data_instruments")
-    instruments = ["piano", "voice", "guitar", "bass", "guitar_new"]
+    instruments = ["piano", "voice", "guitar", "bass"]
 
     for instrument in instruments:
         instrument_path = os.path.join(dataset_path, instrument)
@@ -89,3 +88,6 @@ if __name__ == "__main__":
             count_total_duration(instrument_path, extension=".mp3")
         else:
             count_total_duration(instrument_path, extension=".wav")
+
+    # flatten_dataset("data_instruments/voice/female3")
+    # flatten_dataset("data_instruments/voice/male2")

@@ -488,17 +488,13 @@ def test_train_only_guitar(kwargs):
 
 
 def main(path=None, **kwargs):
-    # betas = [0.01, 0.001, 0.0001, 0.00001, 0]
-    # checkpoint_path = Path("tb_logs_vae/piano/version_0/checkpoints").glob("*.ckpt")
-    # checkpoint_path = list(checkpoint_path)[0]
+    train_model_base(beta=0, **kwargs)
+    train_model_base(beta=0.001, **kwargs)
 
-    # experiment_latent_dim(kwargs)
-    # train_model_base(**kwargs)
-
-    # train_model_instruments(from_checkpoint=True, beta=0, **kwargs)
-    # train_model_instruments(from_checkpoint=True, beta=0.001, **kwargs)
-    # train_model_instruments(from_checkpoint=False, beta=0, **kwargs)
-    # train_model_instruments(from_checkpoint=False, beta=0.001, **kwargs)
+    train_model_instruments(from_checkpoint=True, beta=0, **kwargs)
+    train_model_instruments(from_checkpoint=True, beta=0.001, **kwargs)
+    train_model_instruments(from_checkpoint=False, beta=0, **kwargs)
+    train_model_instruments(from_checkpoint=False, beta=0.001, **kwargs)
 
     # experiment_multiple_betas_base_model(kwargs)
     # experiment_latent_dim_base_model(kwargs, beta=0.001)
@@ -513,8 +509,6 @@ def main(path=None, **kwargs):
     #     from_checkpoint=True, beta=0.001, **kwargs
     # )
     # train_model_instruments_with_full_latent_dim(from_checkpoint=True, beta=0, **kwargs)
-
-    test_train_only_guitar(kwargs)
 
 
 if __name__ == "__main__":
