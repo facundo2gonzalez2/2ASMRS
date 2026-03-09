@@ -10,7 +10,7 @@ def convertir_carpeta_a_mono(carpeta_entrada, carpeta_salida):
 
     # Recorrer todos los archivos de la carpeta
     for archivo in os.listdir(carpeta_entrada):
-        if archivo.lower().endswith(".wav"):
+        if archivo.lower().endswith(".wav") and "solo" in archivo.lower():
             ruta_entrada = os.path.join(carpeta_entrada, archivo)
             ruta_salida = os.path.join(carpeta_salida, archivo)
 
@@ -31,7 +31,7 @@ def convertir_carpeta_a_mono(carpeta_entrada, carpeta_salida):
 
 # --- Configuración ---
 # Cambia estas rutas por las tuyas
-CARPETA_INPUT = "data_instruments/guitar"
-CARPETA_OUTPUT = "data_instruments/guitar_mono"
+CARPETA_INPUT = "data/audio_hex-pickup_original"
+CARPETA_OUTPUT = "data_instruments/guitar_new"
 
 convertir_carpeta_a_mono(CARPETA_INPUT, CARPETA_OUTPUT)

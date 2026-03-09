@@ -452,7 +452,7 @@ def train_model_instruments_with_full_latent_dim(
 
 def test_train_only_guitar(kwargs):
     audio_path = [
-        Path("data_instruments/guitar_mono"),
+        Path("data_instruments/guitar_new"),
     ]
 
     audio_files = []
