@@ -12,4 +12,5 @@ tensorboardX
 multidimensional-wilcoxon-mann-whitney
 scipy
 transformers
+streamlit
 # kadtk
