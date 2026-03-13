@@ -6,6 +6,7 @@ data_instruments/
 data_instruments_small/
 data_instruments_tiny/
 data_test/
+data_test_gt/
 data_instruments.zip
 data_instruments_small.zip
 exported_models/
@@ -27,11 +28,12 @@ experiment_latent_dim_beta_bass_small/
 
 base_model/
 
-instruments_from_checkpoint/
+# instruments_from_checkpoint/
 instruments_from_scratch/
 interpolation_outputs*/
 
 interpolation_regime_experiment*/
+interpolation_random_*/
 data_short_tracks/
 
 results_*/
@@ -39,3 +41,7 @@ results_*/
 AudiosInterpolacion/
 
 instruments_from_checkpoint_big/
+
+test.wav
+reconstructed_audios.mp3
+metrics_history_vae.csv
