@@ -127,35 +127,32 @@ def predict_audio(
     )
 
 
+def predict_all(instrument, path):
+    xmax_values = {
+        "guitar": 150.0,
+        "piano": 120.0,
+        "voice": 140.0,
+        "bass": 120.0,
+    }
+    model_path = (
+        f"instruments_from_checkpoint/{instrument}_from_checkpoint_no_beta/version_0"
+    )
+    data_path = Path(path, instrument)
+    for audio_path in data_path.glob("*.wav"):
+        output_path = Path(f"data_test_gt/{instrument}", f"{audio_path.stem}.wav")
+        print(f"Predicting {audio_path} -> {output_path}...")
+        predict_audio(
+            audio_path_list=[audio_path],
+            model_path=model_path,
+            output_path=output_path,
+            Xmax_overload=xmax_values.get(instrument, 120.0),
+        )
+
+
 def main(path=None, **kwargs):
-    voice_model_path = (
-        "instruments_from_checkpoint/voice_from_checkpoint_no_beta/version_0"
-    )
-    piano_model_path = (
-        "instruments_from_checkpoint/piano_from_checkpoint_no_beta/version_0"
-    )
-    guitar_model_path = (
-        "instruments_from_checkpoint/guitar_from_checkpoint_no_beta/version_0"
-    )
-    bass_model_path = (
-        "instruments_from_checkpoint/bass_from_checkpoint_no_beta/version_0"
-    )
-
-    voice_path = Path("data_test/voice/voice_test.wav")
-    piano_path = Path("data_test/piano_test.wav")
-    guitar_path = Path("data_test/guitar_test.wav")
-    bass_path = Path("data_test/bass/bass_test.wav")
-
-    path = guitar_path
-    model_path = guitar_model_path
-
-    if path.is_file():
-        audio_list = [path]
-    else:
-        # Load all wavfiles in directory
-        audio_list = list(path.glob("*.*"))
-
-    predict_audio(audio_list, model_path, output_path="test.wav", Xmax_overload=200.0)
+    for instrument in ["guitar", "piano", "voice", "bass"]:
+        print(f"Predicting {instrument}...")
+        predict_all(instrument, "data_test")
 
 
 if __name__ == "__main__":
