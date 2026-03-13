@@ -151,23 +151,31 @@ def save_latentscore(Z, hop_length, sr, path):
 
 
 def spectrogram2audio(
-    Y, db_min_norm, phase, hop_length, win_length, in_db, griffinlim=True
+    Y, db_min_norm, phase, hop_length, win_length, in_db, griffinlim=False
 ):
+    Y = torch.nan_to_num(Y, nan=0.0, posinf=0.0, neginf=0.0)
+    Y = torch.clamp(Y, min=0.0)
+
     if in_db:
-        Y_ = torch.sqrt(10 ** ((Y + db_min_norm) / 10)) * torch.exp(1j * phase)
+        magnitude = torch.pow(10.0, (Y + db_min_norm) / 20.0)
     else:
-        Y_ = Y * torch.exp(1j * phase)
+        magnitude = Y
+
+    magnitude = torch.nan_to_num(magnitude, nan=0.0, posinf=0.0, neginf=0.0)
+    magnitude = torch.clamp(magnitude, min=0.0)
 
     if griffinlim:
         audio = torch.tensor(
             librosa.griffinlim(
-                Y_.numpy().T,
+                magnitude.detach().cpu().numpy().T,
                 hop_length=hop_length,
                 win_length=win_length,
                 window="hann",
             )
         )
     else:
+        phase = torch.nan_to_num(phase, nan=0.0, posinf=0.0, neginf=0.0)
+        Y_ = magnitude * torch.exp(1j * phase)
         audio = torch.istft(
             Y_.T,
             hop_length=hop_length,
@@ -175,15 +183,23 @@ def spectrogram2audio(
             window=torch.hann_window(win_length).to(Y_.device),
         )
 
-    return audio
+    return torch.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
 
 
 def save_audio(Y, db_min_norm, phase, hop_length, win_length, samplerate, path, in_db):
-    audio = spectrogram2audio(Y, db_min_norm, phase, hop_length, win_length, in_db)
+    audio = spectrogram2audio(
+        Y, db_min_norm, phase, hop_length, win_length, in_db, griffinlim=False
+    )
+    output_path = Path(path)
+
+    save_kwargs = {}
+    if output_path.suffix.lower() == ".mp3":
+        save_kwargs["format"] = "mp3"
+        save_kwargs["compression"] = torchaudio.io.CodecConfig(bit_rate=320)
+
     torchaudio.save(
-        Path(path),
+        output_path,
         audio.reshape(1, -1),
         samplerate,
-        format="mp3",
-        compression=torchaudio.io.CodecConfig(bit_rate=320),
+        **save_kwargs,
     )
