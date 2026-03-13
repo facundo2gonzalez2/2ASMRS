@@ -10,6 +10,7 @@ from typing import Any, Iterable
 
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
 import yaml
 
 from VariationalAutoEncoder import VariationalAutoEncoder
@@ -19,6 +20,7 @@ from audio_comparator import (
     get_matrix_embedding,
 )
 from audio_utils import get_spectrograms_from_audios, save_audio
+from vae_predict import predict_audio
 
 
 @dataclass(frozen=True)
@@ -37,7 +39,7 @@ REGIMES = {
     "checkpoint_beta": RegimeConfig(
         name="checkpoint_beta",
         root_dir="instruments_from_checkpoint",
-        suffix="from_checkpoint_beta",
+        suffix="from_checkpoint_beta_0.001",
     ),
     "scratch_no_beta": RegimeConfig(
         name="scratch_no_beta",
@@ -47,7 +49,7 @@ REGIMES = {
     "scratch_beta": RegimeConfig(
         name="scratch_beta",
         root_dir="instruments_from_scratch",
-        suffix="from_scratch_beta",
+        suffix="from_scratch_beta_0.001",
     ),
 }
 
@@ -236,12 +238,15 @@ def collect_audio_files(data_root: Path, instrument: str) -> list[Path]:
     return files
 
 
-def sample_files(files: list[Path], n_samples: int, rng: random.Random) -> list[Path]:
-    if not files:
+def sample_indices(total_items: int, n_samples: int, rng: random.Random) -> list[int]:
+    if total_items <= 0:
         return []
-    if len(files) <= n_samples:
-        return files
-    return sorted(rng.sample(files, k=n_samples))
+
+    indices = list(range(total_items))
+    if total_items <= n_samples:
+        return indices
+
+    return sorted(rng.sample(indices, k=n_samples))
 
 
 def build_pairs(
@@ -258,7 +263,7 @@ def build_pairs(
             if other == anchor_instrument:
                 continue
             pairs.append((anchor_instrument, other))
-            pairs.append((other, anchor_instrument))
+            # pairs.append((other, anchor_instrument))
         return pairs
 
     pairs = []
@@ -266,7 +271,7 @@ def build_pairs(
         for target in instruments:
             if source == target:
                 continue
-            pairs.append((source, target))
+            # pairs.append((source, target))
     return pairs
 
 
@@ -359,11 +364,251 @@ def evaluate_reconstruction(
     return metrics
 
 
+def encode_audio_to_latent(
+    model: VariationalAutoEncoder,
+    hparams: dict[str, Any],
+    audio_path: Path,
+) -> torch.Tensor:
+    X, _, _, _ = get_spectrograms_from_audios(
+        [audio_path],
+        hparams["target_sampling_rate"],
+        hparams["win_length"],
+        hparams["hop_length"],
+        db_min_norm=hparams["db_min_norm"],
+        spec_in_db=hparams["spec_in_db"],
+        normalize_each_audio=hparams["normalize_each_audio"],
+    )
+
+    device = next(model.parameters()).device
+    X = X.to(device)
+
+    model.eval()
+    model.encoder.eval()
+    with torch.no_grad():
+        mu, _ = model.encoder(X)
+
+    return mu.mean(dim=0, keepdim=True).detach().cpu()
+
+
+def generate_latent_seed(
+    sampling_mode: str,
+    latent_dim: int,
+    latent_seed: int,
+    rng: random.Random,
+    source_model: VariationalAutoEncoder,
+    source_hparams: dict[str, Any],
+    source_ground_truth_files: list[Path],
+    target_model: VariationalAutoEncoder,
+    target_hparams: dict[str, Any],
+    target_ground_truth_files: list[Path],
+    witness_model: VariationalAutoEncoder,
+    witness_hparams: dict[str, Any],
+    witness_ground_truth_files: list[Path],
+) -> tuple[torch.Tensor, dict[str, str]]:
+    if sampling_mode == "gaussian":
+        generator = torch.Generator(device="cpu")
+        generator.manual_seed(latent_seed)
+        latent_vector = torch.randn((1, latent_dim), generator=generator)
+        return latent_vector, {
+            "latent_seed_reference_source": "",
+            "latent_seed_reference_target": "",
+            "latent_seed_reference_witness": "",
+            "latent_seed_reference_index": "-1",
+        }
+
+    if sampling_mode != "encoded":
+        raise ValueError(
+            f"random_latent_sampling_mode inválido: {sampling_mode}. Usa 'gaussian' o 'encoded'."
+        )
+
+    available_count = min(
+        len(source_ground_truth_files),
+        len(target_ground_truth_files),
+        len(witness_ground_truth_files),
+    )
+    if available_count <= 0:
+        raise ValueError(
+            "No hay suficientes audios ground truth para construir un latente desde audios."
+        )
+
+    reference_index = rng.randrange(available_count)
+    source_reference = source_ground_truth_files[reference_index]
+    target_reference = target_ground_truth_files[reference_index]
+    witness_reference = witness_ground_truth_files[reference_index]
+
+    source_latent = encode_audio_to_latent(
+        source_model, source_hparams, source_reference
+    )
+    target_latent = encode_audio_to_latent(
+        target_model, target_hparams, target_reference
+    )
+    witness_latent = encode_audio_to_latent(
+        witness_model,
+        witness_hparams,
+        witness_reference,
+    )
+
+    latent_vector = (source_latent + target_latent + witness_latent) / 3.0
+    return latent_vector, {
+        "latent_seed_reference_source": str(source_reference),
+        "latent_seed_reference_target": str(target_reference),
+        "latent_seed_reference_witness": str(witness_reference),
+        "latent_seed_reference_index": str(reference_index),
+    }
+
+
+def decode_latent_to_audio(
+    model: VariationalAutoEncoder,
+    hparams: dict[str, Any],
+    latent_vector: torch.Tensor,
+    output_path: Path,
+    num_frames: int,
+    phase_option: str,
+):
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    device = next(model.parameters()).device
+    model.eval()
+    model.decoder.eval()
+    Xmax = float(hparams.get("Xmax", 1.0))
+
+    with torch.no_grad():
+        tiled_latent = latent_vector.to(device).repeat(num_frames, 1)
+        predicted_specgram = model.decoder(tiled_latent) * Xmax
+        predicted_specgram = torch.nan_to_num(
+            predicted_specgram,
+            nan=0.0,
+            posinf=Xmax,
+            neginf=0.0,
+        )
+        predicted_specgram = torch.clamp(predicted_specgram, min=0.0, max=Xmax)
+
+    predict_audio(
+        predicted_specgram=predicted_specgram.cpu(),
+        hps=hparams,
+        phase_option=phase_option,
+        frames=num_frames,
+        output_path=str(output_path),
+    )
+
+
+def get_row_experiment_type(row: dict[str, Any]) -> str:
+    value = row.get("experiment_type")
+    if value:
+        return str(value)
+    return "audio_reconstruction"
+
+
+def get_row_latent_sampling_mode(row: dict[str, Any]) -> str:
+    value = row.get("latent_sampling_mode")
+    if value:
+        return str(value)
+    return ""
+
+
+def get_experiment_plot_metadata(
+    experiment_type: str,
+    latent_sampling_mode: str,
+) -> tuple[str, str]:
+    if experiment_type == "random_latent":
+        if latent_sampling_mode == "encoded":
+            return " | desde latente derivado de audios", "_random_latent_encoded"
+        return " | desde vector aleatorio", "_random_latent_gaussian"
+
+    return "", ""
+
+
+def read_raw_results(input_csv: Path) -> list[dict[str, Any]]:
+    if not input_csv.exists():
+        raise FileNotFoundError(f"No existe el CSV de métricas crudas: {input_csv}")
+
+    with open(input_csv, newline="") as file:
+        reader = csv.DictReader(file)
+        rows: list[dict[str, Any]] = []
+        float_fields = {
+            "alpha",
+            "cosine_source",
+            "cosine_target",
+            "cosine_witness",
+            "fad_source",
+            "fad_target",
+            "fad_witness",
+        }
+        int_fields = {"sample_idx", "paired_audio_idx"}
+
+        for row in reader:
+            parsed_row: dict[str, Any] = dict(row)
+            parsed_row.setdefault("experiment_type", "audio_reconstruction")
+            parsed_row.setdefault("latent_sampling_mode", "")
+            for field in float_fields:
+                value = parsed_row.get(field)
+                if value in (None, ""):
+                    parsed_row[field] = float("nan")
+                else:
+                    parsed_row[field] = float(value)
+            for field in int_fields:
+                value = parsed_row.get(field)
+                if value in (None, ""):
+                    parsed_row[field] = -1
+                else:
+                    parsed_row[field] = int(value)
+            rows.append(parsed_row)
+
+    return rows
+
+
+def plot_metric_family(axis, alphas: list[float], values: list[float], label: str):
+    axis.plot(alphas, values, marker="o", label=label)
+
+
+def plot_sample_metric_family(
+    axis,
+    regime_rows: list[dict[str, Any]],
+    metric_key: str,
+    color: str,
+    label: str,
+):
+    grouped_samples: dict[int, list[dict[str, Any]]] = {}
+    for row in regime_rows:
+        grouped_samples.setdefault(row["paired_audio_idx"], []).append(row)
+
+    first_line = True
+    for sample_rows in grouped_samples.values():
+        sample_rows.sort(key=lambda row: row["alpha"])
+        alphas = [row["alpha"] for row in sample_rows]
+        values = [row.get(metric_key, float("nan")) for row in sample_rows]
+        axis.plot(
+            alphas,
+            values,
+            color=color,
+            linewidth=1.0,
+            alpha=0.35,
+            marker="o",
+            markersize=3,
+            label=label if first_line else None,
+        )
+        first_line = False
+
+
 def run_interpolation_experiment(args):
     project_root = Path(args.project_root).resolve()
     data_root = (project_root / args.data_root).resolve()
+    data_ground_truth_root = (project_root / args.data_ground_truth).resolve()
     output_root = (project_root / args.output_dir).resolve()
     output_root.mkdir(parents=True, exist_ok=True)
+    raw_csv_path = output_root / "interpolation_raw_metrics.csv"
+    summary_csv_path = output_root / "interpolation_summary_metrics.csv"
+    skipped_json_path = output_root / "skipped_cases.json"
+
+    if getattr(args, "plot_only", False):
+        rows = read_raw_results(raw_csv_path)
+        summary_rows = summarize_results(rows, include_fad=args.include_fad)
+        write_summary_results(summary_rows, summary_csv_path)
+        generate_plots(summary_rows, output_root, include_fad=args.include_fad)
+        generate_sample_plots(rows, output_root, include_fad=args.include_fad)
+        print(f"[DONE] Plots regenerados desde CSV: {raw_csv_path}")
+        print(f"[DONE] Summary metrics: {summary_csv_path}")
+        return
 
     instruments = [inst.strip() for inst in args.instruments.split(",") if inst.strip()]
     pairs = build_pairs(instruments, args.anchor_instrument)
@@ -431,39 +676,210 @@ def run_interpolation_experiment(args):
             model_source = build_model(source_artifact)
             model_target = build_model(target_artifact)
 
-            source_files = sample_files(
-                collect_audio_files(data_root, source_instrument),
-                args.samples_per_instrument,
-                rng,
+            source_input_files = collect_audio_files(data_root, source_instrument)
+            source_ground_truth_files = collect_audio_files(
+                data_ground_truth_root, source_instrument
             )
-            target_files = sample_files(
-                collect_audio_files(data_root, target_instrument),
-                args.samples_per_instrument,
-                rng,
+            target_ground_truth_files = collect_audio_files(
+                data_ground_truth_root, target_instrument
             )
-            witness_files = sample_files(
-                collect_audio_files(data_root, witness_instrument),
-                args.samples_per_instrument,
-                rng,
+            witness_ground_truth_files = collect_audio_files(
+                data_ground_truth_root, witness_instrument
             )
 
-            if not source_files or not target_files or not witness_files:
-                skipped_cases.append(
-                    {
-                        "regime": regime_name,
-                        "source": source_instrument,
-                        "target": target_instrument,
-                        "reason": "No hay suficientes archivos de audio para source/target/witness.",
-                    }
-                )
-                continue
-
+            available_count = min(
+                len(source_input_files),
+                len(source_ground_truth_files),
+                len(target_ground_truth_files),
+                len(witness_ground_truth_files),
+            )
             pair_output_dir = (
                 output_root
                 / regime_name
                 / f"{source_instrument}_to_{target_instrument}"
             )
             pair_output_dir.mkdir(parents=True, exist_ok=True)
+
+            selected_indices = sample_indices(
+                available_count,
+                args.samples_per_instrument,
+                rng,
+            )
+
+            if not selected_indices:
+                skipped_cases.append(
+                    {
+                        "experiment_type": "audio_reconstruction",
+                        "regime": regime_name,
+                        "source": source_instrument,
+                        "target": target_instrument,
+                        "reason": "No hay suficientes archivos alineables entre data_root y data_ground_truth para source/target/witness.",
+                    }
+                )
+            else:
+                for alpha in alphas:
+                    interpolated_model = interpolar_vae(
+                        model_source,
+                        model_target,
+                        alpha,
+                        encoder_layers=source_artifact.hparams["encoder_layers"],
+                        decoder_layers=source_artifact.hparams["decoder_layers"],
+                        latent_dim=source_artifact.hparams["latent_dim"],
+                    )
+
+                    for sample_idx, file_index in enumerate(selected_indices):
+                        source_audio = source_input_files[file_index]
+                        source_ref = source_ground_truth_files[file_index]
+                        target_ref = target_ground_truth_files[file_index]
+                        witness_ref = witness_ground_truth_files[file_index]
+
+                        reconstructed_path = (
+                            pair_output_dir
+                            / f"alpha_{alpha:.2f}"
+                            / f"sample_{file_index:02d}_{source_audio.stem}.mp3"
+                        )
+
+                        reconstruct_audio(
+                            interpolated_model,
+                            source_artifact.hparams,
+                            source_audio,
+                            reconstructed_path,
+                        )
+
+                        metrics = evaluate_reconstruction(
+                            reconstructed_path,
+                            source_ref,
+                            target_ref,
+                            witness_ref,
+                            cache,
+                            args.include_fad,
+                        )
+
+                        rows.append(
+                            {
+                                "experiment_type": "audio_reconstruction",
+                                "latent_sampling_mode": "",
+                                "regime": regime_name,
+                                "source_instrument": source_instrument,
+                                "target_instrument": target_instrument,
+                                "witness_instrument": witness_instrument,
+                                "alpha": alpha,
+                                "sample_idx": sample_idx,
+                                "paired_audio_idx": file_index,
+                                "source_audio": str(source_audio),
+                                "source_ground_truth": str(source_ref),
+                                "target_reference": str(target_ref),
+                                "witness_reference": str(witness_ref),
+                                "reconstructed_audio": str(reconstructed_path),
+                                "latent_seed_reference_source": "",
+                                "latent_seed_reference_target": "",
+                                "latent_seed_reference_witness": "",
+                                "latent_seed_reference_index": "",
+                                **metrics,
+                            }
+                        )
+
+            if args.random_latent_samples <= 0:
+                continue
+
+            witness_artifact = resolve_model_artifact(
+                project_root,
+                witness_instrument,
+                regime,
+            )
+            if witness_artifact is None:
+                skipped_cases.append(
+                    {
+                        "experiment_type": "random_latent",
+                        "regime": regime_name,
+                        "source": source_instrument,
+                        "target": target_instrument,
+                        "reason": "Modelo witness faltante para experimento desde latente.",
+                    }
+                )
+                continue
+
+            validate_architecture(source_artifact, witness_artifact)
+            validate_architecture(target_artifact, witness_artifact)
+
+            model_witness = build_model(witness_artifact)
+            latent_output_dir = (
+                pair_output_dir / f"random_latent_{args.random_latent_sampling_mode}"
+            )
+            latent_trials: list[dict[str, Any]] = []
+
+            for latent_sample_idx in range(args.random_latent_samples):
+                try:
+                    latent_vector, latent_metadata = generate_latent_seed(
+                        args.random_latent_sampling_mode,
+                        source_artifact.hparams["latent_dim"],
+                        args.seed + (1000 * latent_sample_idx) + len(latent_trials),
+                        rng,
+                        model_source,
+                        source_artifact.hparams,
+                        source_ground_truth_files,
+                        model_target,
+                        target_artifact.hparams,
+                        target_ground_truth_files,
+                        model_witness,
+                        witness_artifact.hparams,
+                        witness_ground_truth_files,
+                    )
+                except ValueError as err:
+                    skipped_cases.append(
+                        {
+                            "experiment_type": "random_latent",
+                            "regime": regime_name,
+                            "source": source_instrument,
+                            "target": target_instrument,
+                            "reason": str(err),
+                        }
+                    )
+                    latent_trials = []
+                    break
+
+                sample_output_dir = (
+                    latent_output_dir / f"sample_{latent_sample_idx:02d}"
+                )
+                source_reference_path = sample_output_dir / "source_reference.wav"
+                target_reference_path = sample_output_dir / "target_reference.wav"
+                witness_reference_path = sample_output_dir / "witness_reference.wav"
+
+                decode_latent_to_audio(
+                    model_source,
+                    source_artifact.hparams,
+                    latent_vector,
+                    source_reference_path,
+                    args.random_latent_num_frames,
+                    args.random_latent_phase_option,
+                )
+                decode_latent_to_audio(
+                    model_target,
+                    target_artifact.hparams,
+                    latent_vector,
+                    target_reference_path,
+                    args.random_latent_num_frames,
+                    args.random_latent_phase_option,
+                )
+                decode_latent_to_audio(
+                    model_witness,
+                    witness_artifact.hparams,
+                    latent_vector,
+                    witness_reference_path,
+                    args.random_latent_num_frames,
+                    args.random_latent_phase_option,
+                )
+
+                latent_trials.append(
+                    {
+                        "latent_sample_idx": latent_sample_idx,
+                        "latent_vector": latent_vector,
+                        "source_reference": source_reference_path,
+                        "target_reference": target_reference_path,
+                        "witness_reference": witness_reference_path,
+                        **latent_metadata,
+                    }
+                )
 
             for alpha in alphas:
                 interpolated_model = interpolar_vae(
@@ -475,51 +891,64 @@ def run_interpolation_experiment(args):
                     latent_dim=source_artifact.hparams["latent_dim"],
                 )
 
-                for idx, source_audio in enumerate(source_files):
-                    target_ref = target_files[idx % len(target_files)]
-                    witness_ref = witness_files[idx % len(witness_files)]
-
+                for latent_trial in latent_trials:
                     reconstructed_path = (
-                        pair_output_dir
-                        / f"alpha_{alpha:.2f}"
-                        / f"sample_{idx:02d}_{source_audio.stem}.mp3"
+                        latent_output_dir
+                        / f"sample_{latent_trial['latent_sample_idx']:02d}"
+                        / f"alpha_{alpha:.2f}.wav"
                     )
 
-                    reconstruct_audio(
+                    decode_latent_to_audio(
                         interpolated_model,
                         source_artifact.hparams,
-                        source_audio,
+                        latent_trial["latent_vector"],
                         reconstructed_path,
+                        args.random_latent_num_frames,
+                        args.random_latent_phase_option,
                     )
 
                     metrics = evaluate_reconstruction(
                         reconstructed_path,
-                        source_audio,
-                        target_ref,
-                        witness_ref,
+                        latent_trial["source_reference"],
+                        latent_trial["target_reference"],
+                        latent_trial["witness_reference"],
                         cache,
                         args.include_fad,
                     )
 
                     rows.append(
                         {
+                            "experiment_type": "random_latent",
+                            "latent_sampling_mode": args.random_latent_sampling_mode,
                             "regime": regime_name,
                             "source_instrument": source_instrument,
                             "target_instrument": target_instrument,
                             "witness_instrument": witness_instrument,
                             "alpha": alpha,
-                            "sample_idx": idx,
-                            "source_audio": str(source_audio),
-                            "target_reference": str(target_ref),
-                            "witness_reference": str(witness_ref),
+                            "sample_idx": latent_trial["latent_sample_idx"],
+                            "paired_audio_idx": latent_trial["latent_sample_idx"],
+                            "source_audio": "",
+                            "source_ground_truth": str(
+                                latent_trial["source_reference"]
+                            ),
+                            "target_reference": str(latent_trial["target_reference"]),
+                            "witness_reference": str(latent_trial["witness_reference"]),
                             "reconstructed_audio": str(reconstructed_path),
+                            "latent_seed_reference_source": latent_trial[
+                                "latent_seed_reference_source"
+                            ],
+                            "latent_seed_reference_target": latent_trial[
+                                "latent_seed_reference_target"
+                            ],
+                            "latent_seed_reference_witness": latent_trial[
+                                "latent_seed_reference_witness"
+                            ],
+                            "latent_seed_reference_index": latent_trial[
+                                "latent_seed_reference_index"
+                            ],
                             **metrics,
                         }
                     )
-
-    raw_csv_path = output_root / "interpolation_raw_metrics.csv"
-    summary_csv_path = output_root / "interpolation_summary_metrics.csv"
-    skipped_json_path = output_root / "skipped_cases.json"
 
     write_raw_results(rows, raw_csv_path)
     summary_rows = summarize_results(rows, include_fad=args.include_fad)
@@ -529,6 +958,7 @@ def run_interpolation_experiment(args):
         json.dump(skipped_cases, file, indent=2)
 
     generate_plots(summary_rows, output_root, include_fad=args.include_fad)
+    generate_sample_plots(rows, output_root, include_fad=args.include_fad)
 
     print(f"[DONE] Raw metrics: {raw_csv_path}")
     print(f"[DONE] Summary metrics: {summary_csv_path}")
@@ -542,7 +972,7 @@ def write_raw_results(rows: list[dict[str, Any]], output_csv: Path):
             file.write("")
         return
 
-    fieldnames = list(rows[0].keys())
+    fieldnames = list(dict.fromkeys(key for row in rows for key in row.keys()))
     with open(output_csv, "w", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
@@ -564,6 +994,8 @@ def summarize_results(
 
     for row in rows:
         key = (
+            get_row_experiment_type(row),
+            get_row_latent_sampling_mode(row),
             row["regime"],
             row["source_instrument"],
             row["target_instrument"],
@@ -579,8 +1011,18 @@ def summarize_results(
 
     summary_rows = []
     for key, metric_values in grouped.items():
-        regime, source, target, witness, alpha = key
+        (
+            experiment_type,
+            latent_sampling_mode,
+            regime,
+            source,
+            target,
+            witness,
+            alpha,
+        ) = key
         summary = {
+            "experiment_type": experiment_type,
+            "latent_sampling_mode": latent_sampling_mode,
             "regime": regime,
             "source_instrument": source,
             "target_instrument": target,
@@ -601,6 +1043,8 @@ def summarize_results(
 
     summary_rows.sort(
         key=lambda x: (
+            x.get("experiment_type", "audio_reconstruction"),
+            x.get("latent_sampling_mode", ""),
             x["regime"],
             x["source_instrument"],
             x["target_instrument"],
@@ -638,17 +1082,36 @@ def generate_plots(
         metrics.append("fad")
 
     pair_keys = sorted(
-        {(row["source_instrument"], row["target_instrument"]) for row in summary_rows}
+        {
+            (
+                get_row_experiment_type(row),
+                get_row_latent_sampling_mode(row),
+                row["source_instrument"],
+                row["target_instrument"],
+            )
+            for row in summary_rows
+        }
     )
 
-    for source_instrument, target_instrument in pair_keys:
+    for (
+        experiment_type,
+        latent_sampling_mode,
+        source_instrument,
+        target_instrument,
+    ) in pair_keys:
         pair_rows = [
             row
             for row in summary_rows
+            if get_row_experiment_type(row) == experiment_type
+            and get_row_latent_sampling_mode(row) == latent_sampling_mode
             if row["source_instrument"] == source_instrument
             and row["target_instrument"] == target_instrument
         ]
         regimes = sorted({row["regime"] for row in pair_rows})
+        title_suffix, file_suffix = get_experiment_plot_metadata(
+            experiment_type,
+            latent_sampling_mode,
+        )
 
         for metric in metrics:
             n_plots = len(regimes)
@@ -680,9 +1143,9 @@ def generate_plots(
                     for row in regime_rows
                 ]
 
-                axis.plot(alphas, source_values, marker="o", label="source")
-                axis.plot(alphas, target_values, marker="o", label="target")
-                axis.plot(alphas, witness_values, marker="o", label="witness")
+                plot_metric_family(axis, alphas, source_values, "source")
+                plot_metric_family(axis, alphas, target_values, "target")
+                plot_metric_family(axis, alphas, witness_values, "witness")
                 axis.set_title(regime)
                 axis.set_xlabel("alpha")
                 axis.set_ylabel(metric)
@@ -694,7 +1157,7 @@ def generate_plots(
                 axis.axis("off")
 
             fig.suptitle(
-                f"{metric.upper()} | {source_instrument} -> {target_instrument}",
+                f"{metric.upper()} | {source_instrument} -> {target_instrument}{title_suffix}",
                 fontsize=13,
             )
             fig.tight_layout()
@@ -702,7 +1165,107 @@ def generate_plots(
             plot_path = (
                 output_root
                 / "plots"
-                / f"{metric}_{source_instrument}_to_{target_instrument}.png"
+                / f"{metric}{file_suffix}_{source_instrument}_to_{target_instrument}.png"
+            )
+            plot_path.parent.mkdir(parents=True, exist_ok=True)
+            fig.savefig(plot_path)
+            plt.close(fig)
+
+
+def generate_sample_plots(
+    rows: list[dict[str, Any]],
+    output_root: Path,
+    include_fad: bool,
+):
+    if not rows:
+        print("[WARN] No hay filas crudas para plotear por muestra.")
+        return
+
+    metrics = ["cosine"]
+    if include_fad:
+        metrics.append("fad")
+
+    pair_keys = sorted(
+        {
+            (
+                get_row_experiment_type(row),
+                get_row_latent_sampling_mode(row),
+                row["source_instrument"],
+                row["target_instrument"],
+            )
+            for row in rows
+        }
+    )
+    line_styles = [
+        ("source", "tab:blue"),
+        ("target", "tab:orange"),
+        ("witness", "tab:green"),
+    ]
+
+    for (
+        experiment_type,
+        latent_sampling_mode,
+        source_instrument,
+        target_instrument,
+    ) in pair_keys:
+        pair_rows = [
+            row
+            for row in rows
+            if get_row_experiment_type(row) == experiment_type
+            and get_row_latent_sampling_mode(row) == latent_sampling_mode
+            if row["source_instrument"] == source_instrument
+            and row["target_instrument"] == target_instrument
+        ]
+        regimes = sorted({row["regime"] for row in pair_rows})
+        title_suffix, file_suffix = get_experiment_plot_metadata(
+            experiment_type,
+            latent_sampling_mode,
+        )
+
+        for metric in metrics:
+            n_plots = len(regimes)
+            ncols = 2
+            nrows = math.ceil(n_plots / ncols)
+            fig, axes = plt.subplots(
+                nrows=nrows,
+                ncols=ncols,
+                figsize=(12, max(4, 4 * nrows)),
+                squeeze=False,
+            )
+
+            for idx, regime in enumerate(regimes):
+                axis = axes[idx // ncols][idx % ncols]
+                regime_rows = [row for row in pair_rows if row["regime"] == regime]
+
+                for family_name, color in line_styles:
+                    plot_sample_metric_family(
+                        axis,
+                        regime_rows,
+                        f"{metric}_{family_name}",
+                        color,
+                        family_name,
+                    )
+
+                axis.set_title(regime)
+                axis.set_xlabel("alpha")
+                axis.set_ylabel(metric)
+                axis.grid(True, alpha=0.3)
+                axis.legend()
+
+            for idx in range(n_plots, nrows * ncols):
+                axis = axes[idx // ncols][idx % ncols]
+                axis.axis("off")
+
+            fig.suptitle(
+                f"{metric.upper()} por muestra | {source_instrument} -> {target_instrument}{title_suffix}",
+                fontsize=13,
+            )
+            fig.tight_layout()
+
+            plot_path = (
+                output_root
+                / "plots"
+                / f"{metric}_samples{file_suffix}_{source_instrument}_to_{target_instrument}.png"
             )
             plot_path.parent.mkdir(parents=True, exist_ok=True)
             fig.savefig(plot_path)
@@ -713,14 +1276,20 @@ def main():
     config = {
         "project_root": ".",
         "data_root": "data_test",
-        "output_dir": "interpolation_regime_experiment_scratch_vs_checkpoint_latest",
-        "instruments": "piano,bass,voice",
+        "data_ground_truth": "data_test_gt",
+        "output_dir": "interpolation_random_25_samples_ckpt_vs_scratch",
+        "instruments": "piano,guitar,voice",
         "anchor_instrument": "piano",
-        "regimes": "checkpoint_no_beta,scratch_no_beta",
+        "regimes": "checkpoint_beta,checkpoint_no_beta,scratch_beta,scratch_no_beta",
         "alphas": "0.0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0",
-        "samples_per_instrument": 1,
+        "samples_per_instrument": 0,
         "seed": 42,
         "include_fad": True,
+        "plot_only": False,
+        "random_latent_samples": 25,
+        "random_latent_sampling_mode": "gaussian",
+        "random_latent_num_frames": 48,
+        "random_latent_phase_option": "random",
     }
 
     if (

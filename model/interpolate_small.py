@@ -7,7 +7,6 @@ import numpy as np
 from vae_predict import predict_audio
 import soundfile as sf
 from audio_utils import get_spectrograms_from_audios, save_audio
-from audio_comparator import get_cosine_similarity
 import matplotlib.pyplot as plt
 
 
@@ -580,7 +579,7 @@ def cross_interpolation(random_seed, sampling_mode, xmax_values):
     pairs = [(src, tgt) for src in instruments for tgt in instruments if src != tgt]
 
     for checkpoint_str in ["checkpoint", "scratch"]:
-        for beta_str in ["beta", "no_beta"]:
+        for beta_str in ["beta_0.001", "no_beta"]:
             for source, target in pairs:
                 model_a_path = f"instruments_from_{checkpoint_str}/{source}_from_{checkpoint_str}_{beta_str}/version_0"
                 model_b_path = f"instruments_from_{checkpoint_str}/{target}_from_{checkpoint_str}_{beta_str}/version_0"
@@ -600,22 +599,24 @@ def cross_interpolation(random_seed, sampling_mode, xmax_values):
 
 
 if __name__ == "__main__":
-    instrument_a = "piano"
+    from audio_comparator import get_cosine_similarity
+
+    instrument_a = "guitar"
     instrument_b = "voice"
     beta = True
     sampling_mode = 0  # 0 para encoded, 1 para gaussian
 
     xmax_values = {
-        "guitar": 230.0,
-        "piano": 130.0,
+        "guitar": 150.0,
+        "piano": 150.0,
         "voice": 140.0,
         "bass": 120.0,
     }
 
-    model_a_path = f"instruments_from_checkpoint_big/{instrument_a}_from_checkpoint_{'beta' if beta else 'no_beta'}/version_0"
-    model_b_path = f"instruments_from_checkpoint_big/{instrument_b}_from_checkpoint_{'beta' if beta else 'no_beta'}/version_0"
+    model_a_path = f"instruments_from_checkpoint/{instrument_a}_from_checkpoint_{'beta_0.001' if beta else 'no_beta'}/version_0"
+    model_b_path = f"instruments_from_checkpoint/{instrument_b}_from_checkpoint_{'beta_0.001' if beta else 'no_beta'}/version_0"
 
-    output_dir = f"interpolation_outputs_random_{instrument_a}_to_{instrument_b}_{'beta' if beta else 'no_beta'}/"
+    output_dir = f"interpolation_outputs_random_{instrument_a}_to_{instrument_b}_{'beta_0.001' if beta else 'no_beta'}/"
 
     run_random_interpolation_experiment(
         model_a_path,
@@ -628,11 +629,11 @@ if __name__ == "__main__":
         model_b_xmax=xmax_values[instrument_b],
     )
 
-    # cross_interpolation(
-    #     random_seed=44,
-    #     sampling_mode="encoded" if sampling_mode == 0 else "gaussian",
-    #     xmax_values=xmax_values,
-    # )
+    cross_interpolation(
+        random_seed=42,
+        sampling_mode="encoded" if sampling_mode == 0 else "gaussian",
+        xmax_values=xmax_values,
+    )
 
     # print("Resultados de similitud de coseno:")
     # for alpha, sims in results.items():
