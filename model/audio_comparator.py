@@ -81,26 +81,49 @@ def calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
     Basado en la ecuación (1) del paper [2]:
     FAD = ||mu_r - mu_t||^2 + tr(Sigma_r + Sigma_t - 2*sqrt(Sigma_r * Sigma_t))
     """
+    mu1 = np.asarray(mu1, dtype=np.float64)
+    mu2 = np.asarray(mu2, dtype=np.float64)
+    sigma1 = np.atleast_2d(np.asarray(sigma1, dtype=np.float64))
+    sigma2 = np.atleast_2d(np.asarray(sigma2, dtype=np.float64))
+
+    # Forzamos simetría para reducir inestabilidad numérica en sqrtm.
+    sigma1 = (sigma1 + sigma1.T) / 2.0
+    sigma2 = (sigma2 + sigma2.T) / 2.0
+
     # 1. Distancia euclidiana al cuadrado entre las medias
     diff = mu1 - mu2
     mean_term = np.dot(diff, diff)
 
     # 2. Término de la traza (Covarianza)
-    # Calculamos la raíz cuadrada del producto de covarianzas
-    covmean, _ = linalg.sqrtm(sigma1.dot(sigma2), disp=False)
+    # Con pocos frames frente a muchas features, las covarianzas suelen ser
+    # singulares. Regularizamos progresivamente hasta obtener una sqrtm usable.
+    covmean = None
+    identity = np.eye(sigma1.shape[0], dtype=np.float64)
+    for attempt in range(6):
+        regularization = eps * (10**attempt)
+        cov_prod = (sigma1 + identity * regularization).dot(
+            sigma2 + identity * regularization
+        )
+        candidate, _ = linalg.sqrtm(cov_prod, disp=False)
 
-    # Manejo de errores numéricos si el resultado tiene componentes imaginarios
-    if not np.isfinite(covmean).all():
-        offset = np.eye(sigma1.shape) * eps
-        covmean = linalg.sqrtm((sigma1 + offset).dot(sigma2 + offset))
+        if not np.isfinite(candidate).all():
+            continue
 
-    # Si hay una parte imaginaria pequeña debido a errores numéricos, la descartamos
-    if np.iscomplexobj(covmean):  # type: ignore
-        if not np.isclose(np.diagonal(covmean).imag, 0, atol=1e-3).all():  # type: ignore
-            raise ValueError(
-                "Las matrices de covarianza resultaron en números complejos significativos."
-            )
-        covmean = covmean.real  # type: ignore
+        if np.iscomplexobj(candidate):
+            max_imag = float(np.max(np.abs(candidate.imag)))
+            max_real = float(np.max(np.abs(candidate.real)))
+            tolerance = max(1e-3, max_real * 1e-3)
+            if max_imag > tolerance:
+                continue
+            candidate = candidate.real
+
+        covmean = candidate
+        break
+
+    if covmean is None:
+        raise ValueError(
+            "No se pudo estabilizar el cálculo de FAD para las matrices de covarianza."
+        )
 
     tr_covmean = np.trace(covmean)  # type: ignore
 
