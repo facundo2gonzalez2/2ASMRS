@@ -228,7 +228,7 @@ def run_interpolation_experiment(
     model_a_path: str,
     model_b_path: str,
     output_dir: str,
-    base_model_path: str = "base_model/base_model_no_beta/version_0",
+    base_model_path: str = "inference_models/base_model/base_model_no_beta/version_0",
     encoder_with_base_model: bool = False,
 ):
     checkpoint_path_a = list(Path(model_a_path, "checkpoints").glob("*.ckpt"))[0]
@@ -581,8 +581,8 @@ def cross_interpolation(random_seed, sampling_mode, xmax_values):
     for checkpoint_str in ["checkpoint", "scratch"]:
         for beta_str in ["beta_0.001", "no_beta"]:
             for source, target in pairs:
-                model_a_path = f"instruments_from_{checkpoint_str}/{source}_from_{checkpoint_str}_{beta_str}/version_0"
-                model_b_path = f"instruments_from_{checkpoint_str}/{target}_from_{checkpoint_str}_{beta_str}/version_0"
+                model_a_path = f"inference_models/instruments_from_{checkpoint_str}/{source}_from_{checkpoint_str}_{beta_str}/version_0"
+                model_b_path = f"inference_models/instruments_from_{checkpoint_str}/{target}_from_{checkpoint_str}_{beta_str}/version_0"
 
                 output_dir = f"AudiosInterpolacion/{beta_str}/{checkpoint_str}/interpolation_{source}_to_{target}/"
 
@@ -613,8 +613,8 @@ if __name__ == "__main__":
         "bass": 120.0,
     }
 
-    model_a_path = f"instruments_from_checkpoint/{instrument_a}_from_checkpoint_{'beta_0.001' if beta else 'no_beta'}/version_0"
-    model_b_path = f"instruments_from_checkpoint/{instrument_b}_from_checkpoint_{'beta_0.001' if beta else 'no_beta'}/version_0"
+    model_a_path = f"inference_models/instruments_from_checkpoint/{instrument_a}_from_checkpoint_{'beta_0.001' if beta else 'no_beta'}/version_0"
+    model_b_path = f"inference_models/instruments_from_checkpoint/{instrument_b}_from_checkpoint_{'beta_0.001' if beta else 'no_beta'}/version_0"
 
     output_dir = f"interpolation_outputs_random_{instrument_a}_to_{instrument_b}_{'beta_0.001' if beta else 'no_beta'}/"
 

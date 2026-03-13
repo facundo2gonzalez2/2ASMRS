@@ -184,8 +184,8 @@ def get_latent_projection(
 
 def run_comparison(
     audio_path="umap_experiment/fur_elise_piano_cut.mp3",
-    model_path_1="experiment_latent_dim_beta_piano_small/beta_vae_latentdim_8/version_0",
-    model_path_2="experiment_latent_dim_piano_small/vae_latentdim_3/version_0",
+    model_path_1="experiments_models/experiment_latent_dim_beta_piano_small/beta_vae_latentdim_8/version_0",
+    model_path_2="experiments_models/experiment_latent_dim_piano_small/vae_latentdim_3/version_0",
     output_img_path="umap_experiment/comparison_trajectory_piano.png",
     trim_silence=False,
     remove_all_silence=False,
@@ -280,7 +280,7 @@ def run_comparison(
 
 
 def run_model_base_comparison(
-    base_model_path="base_model/base_model_beta/version_0",
+    base_model_path="inference_models/base_model/base_model_beta/version_0",
     output_img_path="umap_experiment/base_model_instruments_umap_new_beta_test.png",
     trim_silence=True,
     remove_all_silence=True,

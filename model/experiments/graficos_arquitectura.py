@@ -38,17 +38,17 @@ beta_latentdim_experiments = [
 ]
 
 experiments = [
-    ("experiment_latent_dim_voice_small", "Voice"),
-    ("experiment_latent_dim_piano_small", "Piano"),
-    ("experiment_latent_dim_bass_small", "Bass"),
-    ("experiment_latent_dim_guitar_small", "Guitar"),
+    ("experiments_models/experiment_latent_dim_voice_small", "Voice"),
+    ("experiments_models/experiment_latent_dim_piano_small", "Piano"),
+    ("experiments_models/experiment_latent_dim_bass_small", "Bass"),
+    ("experiments_models/experiment_latent_dim_guitar_small", "Guitar"),
 ]
 
 beta_experiments = [
-    ("experiment_latent_dim_beta_voice_small", "Voice"),
-    ("experiment_latent_dim_beta_piano_small", "Piano"),
-    ("experiment_latent_dim_beta_bass_small", "Bass"),
-    ("experiment_latent_dim_beta_guitar_small", "Guitar"),
+    ("experiments_models/experiment_latent_dim_beta_voice_small", "Voice"),
+    ("experiments_models/experiment_latent_dim_beta_piano_small", "Piano"),
+    ("experiments_models/experiment_latent_dim_beta_bass_small", "Bass"),
+    ("experiments_models/experiment_latent_dim_beta_guitar_small", "Guitar"),
 ]
 
 versions = [f"version_{i}" for i in range(6)]

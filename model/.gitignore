@@ -1,6 +1,11 @@
 __pycache__/
 .venv/
 logs/
+exported_models/
+exported_models_vae/
+tb_logs_vae/
+
+# Datasets
 data/
 data_instruments/
 data_instruments_small/
@@ -9,39 +14,25 @@ data_test/
 data_test_gt/
 data_instruments.zip
 data_instruments_small.zip
-exported_models/
-exported_models_vae/
-tb_logs_vae/
-outputs/
-experiment_latent_dim/
-experiment_latent_dim_piano/
 
-experiment_latent_dim_piano_small/
-experiment_latent_dim_voice_small/
-experiment_latent_dim_guitar_small/
-experiment_latent_dim_bass_small/
+# Models for experiments
+experiments_models/
 
-experiment_latent_dim_beta_piano_small/
-experiment_latent_dim_beta_voice_small/
-experiment_latent_dim_beta_guitar_small/
-experiment_latent_dim_beta_bass_small/
-
+# Models for inference
+# inference_models/
 base_model/
-
-# instruments_from_checkpoint/
 instruments_from_scratch/
-interpolation_outputs*/
+reconstructed_audios.mp3
+metrics_history_vae.csv
 
+
+# Experiments outputs
+
+outputs/
+interpolation_outputs*/
 interpolation_regime_experiment*/
 interpolation_random_*/
 data_short_tracks/
-
 results_*/
-
 AudiosInterpolacion/
-
-instruments_from_checkpoint_big/
-
 test.wav
-reconstructed_audios.mp3
-metrics_history_vae.csv

@@ -13,14 +13,14 @@ OUTPUT_DIR="results_${NOW}"
 
 # Asegurarse de que existan los modelos
 MODELS=(
-    "experiment_latent_dim_voice_small"
-    "experiment_latent_dim_piano_small"
-    "experiment_latent_dim_bass_small"
-    "experiment_latent_dim_guitar_small"
-    "experiment_latent_dim_beta_voice_small"
-    "experiment_latent_dim_beta_piano_small"
-    "experiment_latent_dim_beta_bass_small"
-    "experiment_latent_dim_beta_guitar_small"
+    "experiments_models/experiment_latent_dim_voice_small"
+    "experiments_models/experiment_latent_dim_piano_small"
+    "experiments_models/experiment_latent_dim_bass_small"
+    "experiments_models/experiment_latent_dim_guitar_small"
+    "experiments_models/experiment_latent_dim_beta_voice_small"
+    "experiments_models/experiment_latent_dim_beta_piano_small"
+    "experiments_models/experiment_latent_dim_beta_bass_small"
+    "experiments_models/experiment_latent_dim_beta_guitar_small"
 )
 
 MISSING_MODELS=0

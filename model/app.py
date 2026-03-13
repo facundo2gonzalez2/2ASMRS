@@ -49,6 +49,7 @@ def load_model(instrument_key: str, beta_config: str, training_source: str):
     dir_name = INSTRUMENT_DIR_NAMES[instrument_key]
     model_dir = Path(
         "model",
+        "inference_models",
         f"instruments_from_{training_source}",
         f"{dir_name}_from_{training_source}_{beta_config}",
         "version_0",

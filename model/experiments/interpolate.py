@@ -33,22 +33,22 @@ class RegimeConfig:
 REGIMES = {
     "checkpoint_no_beta": RegimeConfig(
         name="checkpoint_no_beta",
-        root_dir="instruments_from_checkpoint",
+        root_dir="inference_models/instruments_from_checkpoint",
         suffix="from_checkpoint_no_beta",
     ),
     "checkpoint_beta": RegimeConfig(
         name="checkpoint_beta",
-        root_dir="instruments_from_checkpoint",
+        root_dir="inference_models/instruments_from_checkpoint",
         suffix="from_checkpoint_beta_0.001",
     ),
     "scratch_no_beta": RegimeConfig(
         name="scratch_no_beta",
-        root_dir="instruments_from_scratch",
+        root_dir="inference_models/instruments_from_scratch",
         suffix="from_scratch_no_beta",
     ),
     "scratch_beta": RegimeConfig(
         name="scratch_beta",
-        root_dir="instruments_from_scratch",
+        root_dir="inference_models/instruments_from_scratch",
         suffix="from_scratch_beta_0.001",
     ),
 }

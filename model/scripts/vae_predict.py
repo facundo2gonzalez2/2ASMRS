@@ -135,7 +135,7 @@ def predict_all(instrument, path):
         "bass": 120.0,
     }
     model_path = (
-        f"instruments_from_checkpoint/{instrument}_from_checkpoint_no_beta/version_0"
+        f"inference_models/instruments_from_checkpoint/{instrument}_from_checkpoint_no_beta/version_0"
     )
     data_path = Path(path, instrument)
     for audio_path in data_path.glob("*.wav"):

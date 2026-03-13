@@ -175,7 +175,7 @@ def experiment_latent_dim_instruments(kwargs):
                     encoder_layers=encoder_layers,
                     latent_dim=latent_dim,
                     beta=0.001,
-                    log_path=f"experiment_latent_dim_beta_{path.name}_small",
+                    log_path=f"experiments_models/experiment_latent_dim_beta_{path.name}_small",
                     **kwargs,
                 )
         print(f"Total duration: {datetime.now() - now}")
@@ -224,7 +224,7 @@ def experiment_latent_dim_base_model(kwargs, beta=0.001):
                 encoder_layers=encoder_layers,
                 latent_dim=latent_dim,
                 beta=beta,
-                log_path="experiment_latent_dim_base_model",
+                log_path="experiments_models/experiment_latent_dim_base_model",
                 **kwargs,
             )
         print(f"Total duration: {datetime.now() - now}")
@@ -258,7 +258,7 @@ def train_model_base(beta, **kwargs):
         encoder_layers=(1024, 512, 256, 128, 64, 32, 16, 8, 4),
         latent_dim=4,
         beta=beta,
-        log_path="base_model",
+        log_path="inference_models/base_model",
         **kwargs,
     )
     print(f"Total duration for base model with beta training: {datetime.now() - now}")
@@ -273,7 +273,7 @@ def train_model_instruments(from_checkpoint=False, beta=0.0, **kwargs):
     :param kwargs: Description
     """
     log_path = (
-        "instruments_from_checkpoint" if from_checkpoint else "instruments_from_scratch"
+        "inference_models/instruments_from_checkpoint" if from_checkpoint else "inference_models/instruments_from_scratch"
     )
     beta_str = "beta" if beta > 0 else "no_beta"
     ckpt_str = "from_checkpoint" if from_checkpoint else "from_scratch"
@@ -296,7 +296,7 @@ def train_model_instruments(from_checkpoint=False, beta=0.0, **kwargs):
         checkpoint_path = None
         if from_checkpoint:
             checkpoint_path = Path(
-                f"base_model/base_model_{beta_str}/version_0/checkpoints"
+                f"inference_models/base_model/base_model_{beta_str}/version_0/checkpoints"
             ).glob("*.ckpt")
             checkpoint_path = list(checkpoint_path)[0]
 
@@ -344,7 +344,7 @@ def experiment_multiple_betas_base_model(kwargs):
             encoder_layers=(1024, 512, 256, 128, 64, 32, 16, 8, 4),
             latent_dim=4,
             beta=beta,
-            log_path="base_model_beta_variation",
+            log_path="experiments_models/base_model_beta_variation",
             **kwargs,
         )
         print(f"Total duration for base model with beta {beta}: {datetime.now() - now}")
