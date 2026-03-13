@@ -73,6 +73,6 @@ ax1.legend(lines, labels, loc="center left")  # type: ignore
 
 # Ajustar márgenes para que los textos no se corten y guardar
 fig.tight_layout()
-filename = "similarity_vs_fad.png"
+filename = "imgs/similarity_vs_fad.png"
 plt.savefig(filename)
 print(f"Gráfico guardado como {filename}")

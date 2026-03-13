@@ -37,8 +37,8 @@ if [ $MISSING_MODELS -eq 1 ]; then
 fi
 
 # Generar gráficos
-python graficos_arquitectura.py --output_dir $OUTPUT_DIR/graficos_arquitectura
+python experiments/graficos_arquitectura.py --output_dir $OUTPUT_DIR/graficos_arquitectura
 
 
 # 2) Comparación beta-vae
-python graficos_comparacion_beta-vae.py --output_dir $OUTPUT_DIR/graficos_comparacion_beta-vae
+python experiments/graficos_comparacion_beta-vae.py --output_dir $OUTPUT_DIR/graficos_comparacion_beta-vae

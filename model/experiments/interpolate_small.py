@@ -4,7 +4,7 @@ from pathlib import Path
 import yaml
 import torch
 import numpy as np
-from vae_predict import predict_audio
+from model.scripts.vae_predict import predict_audio
 import soundfile as sf
 from audio_utils import get_spectrograms_from_audios, save_audio
 import matplotlib.pyplot as plt

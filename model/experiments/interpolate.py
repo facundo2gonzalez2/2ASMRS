@@ -20,7 +20,7 @@ from audio_comparator import (
     get_matrix_embedding,
 )
 from audio_utils import get_spectrograms_from_audios, save_audio
-from vae_predict import predict_audio
+from model.scripts.vae_predict import predict_audio
 
 
 @dataclass(frozen=True)

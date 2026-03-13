@@ -9,8 +9,8 @@ import streamlit.components.v1 as components
 import torch
 import yaml
 
-from interpolate_small import interpolar_vae
-from vae_predict import predict_audio
+from model.experiments.interpolate_small import interpolar_vae
+from model.scripts.vae_predict import predict_audio
 from VariationalAutoEncoder import VariationalAutoEncoder
 
 # --- Constantes ---
