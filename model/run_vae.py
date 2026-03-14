@@ -275,7 +275,7 @@ def train_model_instruments(from_checkpoint=False, beta=0.0, **kwargs):
     log_path = (
         "inference_models/instruments_from_checkpoint" if from_checkpoint else "inference_models/instruments_from_scratch"
     )
-    beta_str = "beta" if beta > 0 else "no_beta"
+    beta_str = f"beta_{beta}" if beta > 0 else "no_beta"
     ckpt_str = "from_checkpoint" if from_checkpoint else "from_scratch"
 
     for instrument in ["piano", "voice", "guitar", "bass"]:
@@ -407,7 +407,7 @@ def train_model_instruments_with_full_latent_dim(
         if from_checkpoint
         else "instruments_from_scratch_big"
     )
-    beta_str = "beta" if beta > 0 else "no_beta"
+    beta_str = f"beta_{beta}" if beta > 0 else "no_beta"
     ckpt_str = "from_checkpoint" if from_checkpoint else "from_scratch"
 
     for instrument in ["piano", "voice", "guitar", "bass"]:
@@ -489,12 +489,12 @@ def test_train_only_guitar(kwargs):
 
 def main(path=None, **kwargs):
     train_model_base(beta=0, **kwargs)
-    train_model_base(beta=0.001, **kwargs)
+    # train_model_base(beta=0.001, **kwargs)
 
     train_model_instruments(from_checkpoint=True, beta=0, **kwargs)
-    train_model_instruments(from_checkpoint=True, beta=0.001, **kwargs)
+    # train_model_instruments(from_checkpoint=True, beta=0.001, **kwargs)
     train_model_instruments(from_checkpoint=False, beta=0, **kwargs)
-    train_model_instruments(from_checkpoint=False, beta=0.001, **kwargs)
+    # train_model_instruments(from_checkpoint=False, beta=0.001, **kwargs)
 
     # experiment_multiple_betas_base_model(kwargs)
     # experiment_latent_dim_base_model(kwargs, beta=0.001)
