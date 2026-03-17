@@ -140,7 +140,7 @@ def train(
         save_latentscore(logvar.cpu().numpy(), hop_length, target_sampling_rate, path)
 
 
-def experiment_latent_dim_instruments(kwargs):
+def experiment_latent_dim_instruments(beta, kwargs):
     instruments_paths = [
         Path("data_instruments_small/piano"),
         Path("data_instruments_small/voice"),
@@ -166,6 +166,7 @@ def experiment_latent_dim_instruments(kwargs):
             ]
 
             for encoder_layers, latent_dim in arqs:
+                log_path = f"experiment_latent_dim_beta_{path.name}_small" if beta > 0 else f"experiment_latent_dim_{path.name}_small"
                 run_name = f"beta_vae_latentdim_{latent_dim}"
                 print("=" * 60)
                 print(f"Running experiment: {run_name}")
@@ -174,8 +175,8 @@ def experiment_latent_dim_instruments(kwargs):
                     run_name=run_name,
                     encoder_layers=encoder_layers,
                     latent_dim=latent_dim,
-                    beta=0.001,
-                    log_path=f"experiments_models/experiment_latent_dim_beta_{path.name}_small",
+                    beta=beta,
+                    log_path=f"experiments_models/{log_path}",
                     **kwargs,
                 )
         print(f"Total duration: {datetime.now() - now}")
@@ -183,7 +184,7 @@ def experiment_latent_dim_instruments(kwargs):
         print("\n\n")
 
 
-def experiment_latent_dim_base_model(kwargs, beta=0.001):
+def experiment_latent_dim_base_model(beta, kwargs):
     instruments_paths = [
         Path("data_instruments/piano"),
         Path("data_instruments/voice"),
@@ -232,7 +233,7 @@ def experiment_latent_dim_base_model(kwargs, beta=0.001):
         print("\n\n")
 
 
-def train_model_base(beta, **kwargs):
+def train_base_model(beta, **kwargs):
     instruments_paths = [
         Path("data_instruments/piano"),
         Path("data_instruments/voice"),
@@ -264,14 +265,7 @@ def train_model_base(beta, **kwargs):
     print(f"Total duration for base model with beta training: {datetime.now() - now}")
 
 
-def train_model_instruments(from_checkpoint=False, beta=0.0, **kwargs):
-    """
-    Entrenar modelo particular de cada instrumento.
-
-    :param from_checkpoint: Si es True entrena a partir del último checkpoint guardado de base_model
-    :param beta: El valor de beta para el loss KL
-    :param kwargs: Description
-    """
+def train_instruments_models(from_checkpoint, beta, **kwargs):
     log_path = (
         "inference_models/instruments_from_checkpoint" if from_checkpoint else "inference_models/instruments_from_scratch"
     )
@@ -318,7 +312,7 @@ def train_model_instruments(from_checkpoint=False, beta=0.0, **kwargs):
         )
 
 
-def experiment_multiple_betas_base_model(kwargs):
+def experiment_base_model_beta_variation(kwargs):
     instruments_paths = [
         Path("data_instruments/piano"),
         Path("data_instruments/voice"),
@@ -334,7 +328,8 @@ def experiment_multiple_betas_base_model(kwargs):
             # Load all wavfiles in directory
             audio_files.extend(list(path.glob("*.*")))
 
-    betas = [0.01, 0.001, 0.0001, 0.00001, 0]
+    # betas = [0.01, 0.001, 0.0001, 0.00001, 0]
+    betas = [0] # Temporary fix
 
     for beta in betas:
         now = datetime.now()
@@ -449,67 +444,21 @@ def train_model_instruments_with_full_latent_dim(
             f"Total duration for {instrument} {ckpt_str.replace('_', ' ')} {mode_str} beta training: {datetime.now() - now}"
         )
 
-
-def test_train_only_guitar(kwargs):
-    audio_path = [
-        Path("data_instruments/guitar_new"),
-    ]
-
-    audio_files = []
-    for path in audio_path:
-        if path.is_file():
-            audio_files.append(path)
-        else:
-            # Load all wavfiles in directory
-            audio_files.extend(list(path.glob("*.*")))
-
-    now = datetime.now()
-
-    train(
-        audio_files,
-        run_name="guitar_only_no_beta",
-        encoder_layers=(1024, 512, 256, 128, 64, 32, 16, 8, 4),
-        latent_dim=4,
-        beta=0,
-        log_path="guitar_only",
-        **kwargs,
-    )
-
-    train(
-        audio_files,
-        run_name="guitar_only_beta",
-        encoder_layers=(1024, 512, 256, 128, 64, 32, 16, 8, 4),
-        latent_dim=4,
-        beta=0.001,
-        log_path="guitar_only",
-        **kwargs,
-    )
-    print(f"Total duration for guitar only training: {datetime.now() - now}")
-
-
 def main(path=None, **kwargs):
-    train_model_base(beta=0, **kwargs)
-    # train_model_base(beta=0.001, **kwargs)
+    # train_base_model(beta=0, **kwargs)
+    # train_base_model(beta=0.001, **kwargs)
 
-    train_model_instruments(from_checkpoint=True, beta=0, **kwargs)
-    # train_model_instruments(from_checkpoint=True, beta=0.001, **kwargs)
-    train_model_instruments(from_checkpoint=False, beta=0, **kwargs)
-    # train_model_instruments(from_checkpoint=False, beta=0.001, **kwargs)
+    # train_instruments_models(from_checkpoint=True, beta=0, **kwargs)
+    # train_instruments_models(from_checkpoint=True, beta=0.001, **kwargs)
+    # train_instruments_models(from_checkpoint=False, beta=0, **kwargs)
+    # train_instruments_models(from_checkpoint=False, beta=0.001, **kwargs)
 
-    # experiment_multiple_betas_base_model(kwargs)
-    # experiment_latent_dim_base_model(kwargs, beta=0.001)
-    # experiment_latent_dim_base_model(kwargs, beta=0)
+    experiment_base_model_beta_variation(kwargs)
+    # experiment_latent_dim_base_model(beta=0, kwargs=kwargs)
+    # experiment_latent_dim_base_model(beta=0.001, kwargs=kwargs)
 
-    # TOOD: por ahora dejo siempre beta=0.001, ver si mejora reconstrucción bajando un poquito el beta
-    # train_model_instruments(from_checkpoint=True, beta=0.0001, **kwargs)
-    # train_model_base(beta=0.0001, **kwargs)
-
-    # train_base_model_with_full_latent_dim(kwargs)
-    # train_model_instruments_with_full_latent_dim(
-    #     from_checkpoint=True, beta=0.001, **kwargs
-    # )
-    # train_model_instruments_with_full_latent_dim(from_checkpoint=True, beta=0, **kwargs)
-
+    experiment_latent_dim_instruments(beta=0, kwargs=kwargs)
+    # experiment_latent_dim_instruments(beta=0.001, kwargs=kwargs)
 
 if __name__ == "__main__":
     Fire(main)
