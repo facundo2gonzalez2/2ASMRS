@@ -90,7 +90,10 @@ class VariationalAutoEncoder(pl.LightningModule):
 
     def forward(self, x):
         mu, logvar = self.encoder(x)
-        z = reparameterize(mu, logvar)
+        if self.beta == 0:
+            z = mu
+        else:
+            z = reparameterize(mu, logvar)
         x_hat = self.decoder(z)
         return x_hat, mu, logvar
 
