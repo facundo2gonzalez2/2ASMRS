@@ -4,9 +4,9 @@
 \usepackage[spanish]{babel}
 \usepackage{fullpage}
 
-\title{Propuesta de tesis de Licenciatura en Ciencias de la Computación\\ \Huge Interpolación de modelos VAE para generación de timbres musicales. \\ }
+\title{Propuesta de Tesis de Licenciatura en Ciencias de la Computación\\ \Huge Morphing Tímbrico Mediante Interpolación de Pesos de Modelos VAE. \\ }
 \author{Facundo González Barnator \\{\small fgbarnator@dc.uba.ar - L.U. 1440/21}}
-\date{Director/a: Pablo Riera \\{\small priera@dc.uba.ar}~\vspace{0.2cm}\\ Co-Director/a: - \\{\small -@dc.uba.ar}}
+\date{Director: Pablo Riera \\{\small priera@dc.uba.ar}}
 
 
 \begin{document}
@@ -14,27 +14,165 @@
 
 % \newpage
 
-Para la realización del plan de tesis completar las secciones mencionadas a continuación. Este documento debe tener como máximo 3 carillas sin contar la bibliografía ni la carátula.
- 
 \section*{Introducción y antecedentes de la temática}
 
-\emph{Hace mucho tiempo en una galaxia muy muy lejana~\cite{caillon2021rave}...}
-\emph{Hace mucho tiempo en una galaxia muy muy lejana~\cite{riera2017timbre}...}
-\emph{Hace mucho tiempo en una galaxia muy muy lejana~\cite{kingma2013auto}...}
-\emph{Hace mucho tiempo en una galaxia muy muy lejana~\cite{higgins2017beta}...}
-\emph{Hace mucho tiempo en una galaxia muy muy lejana~\cite{xi2019guitarset}...}
+El timbre es el atributo perceptual que permite distinguir dos sonidos de igual altura y
+volumen producidos por fuentes distintas~---~por ejemplo, una misma nota tocada en piano y en
+guitarra. La capacidad de generar timbres intermedios entre instrumentos conocidos,
+comúnmente denominada \emph{morphing tímbrico}, resulta de particular interés tanto en
+la producción musical como en el diseño sonoro, ya que permite expandir la paleta sonora
+más allá de los instrumentos acústicos existentes.
+
+Los autoencoders variacionales (VAE), introducidos por Kingma y Welling~\cite{kingma2013auto},
+constituyen un marco generativo que aprende representaciones latentes continuas de los datos
+de entrada. A diferencia de los autoencoders clásicos, el VAE impone una distribución
+probabilística sobre el espacio latente mediante la divergencia de Kullback-Leibler (KL),
+lo que permite tanto la generación como la interpolación de muestras. Higgins et al.~\cite{higgins2017beta}
+propusieron el $\beta$-VAE, una variante que pondera el término KL con un hiperparámetro
+$\beta$ para controlar el balance entre calidad de reconstrucción y regularización del espacio
+latente, favoreciendo representaciones más estructuradas cuando $\beta > 0$.
+
+En el dominio del audio, Caillon y Esling~\cite{caillon2021rave} demostraron con RAVE que
+los VAE pueden sintetizar audio de alta calidad en tiempo real, operando directamente sobre
+representaciones espectrales. Riera, Eguía y Zabaljáuregui~\cite{riera2017timbre} exploraron
+la construcción de espacios de timbre mediante autoencoders dispersos, mostrando que las
+representaciones aprendidas capturan relaciones perceptuales entre timbres instrumentales
+de manera consistente con la percepción humana.
+
+Si bien estos trabajos demuestran la utilidad de los modelos generativos para representar
+timbres, la generación de timbres intermedios entre instrumentos específicos permanece como
+un problema abierto. Las técnicas habituales de interpolación operan en el espacio latente
+de un único modelo entrenado sobre múltiples instrumentos, lo cual limita la fidelidad
+de cada timbre individual. En este trabajo se propone un enfoque alternativo: entrenar
+modelos VAE especializados por instrumento y luego interpolar sus pesos mediante
+SLERP (\emph{Spherical Linear Interpolation}), generando modelos intermedios cuyos decoders
+producen timbres híbridos. Este enfoque opera en el espacio de parámetros del modelo
+en lugar del espacio latente, preservando la capacidad reconstructiva de cada modelo
+especializado.
+
+El sistema propuesto opera sobre espectrogramas de magnitud obtenidos mediante la
+Transformada de Fourier de Tiempo Corto (STFT), que son codificados por el encoder del VAE
+a un espacio latente de baja dimensionalidad (típicamente 4 dimensiones) y reconstruidos
+por el decoder. La evaluación de la calidad de las interpolaciones se realiza mediante la
+Fréchet Audio Distance (FAD), utilizando embeddings del modelo MERT para cuantificar la
+distancia perceptual entre distribuciones de audio generado y audio de referencia.
 
 \section*{Objetivos}
 
+\textbf{Objetivo general:} Desarrollar y evaluar un sistema basado en autoencoders
+variacionales ($\beta$-VAE) para la generación de timbres musicales intermedios entre
+instrumentos (piano, guitarra, voz, bajo) mediante interpolación en el espacio de
+parámetros del modelo.
+
+\textbf{Objetivos específicos:}
+\begin{enumerate}
+    \item Entrenar modelos VAE especializados por instrumento, partiendo de un modelo
+    base entrenado sobre el conjunto completo de instrumentos y ajustado posteriormente
+    (\emph{fine-tuning}) para cada instrumento individual.
+
+    \item Implementar y comparar métodos de interpolación de pesos de modelos,
+    incluyendo interpolación lineal (LERP) e interpolación esférica (SLERP),
+    para la generación de modelos intermedios.
+
+    \item Evaluar la calidad de los timbres generados mediante métricas objetivas
+    ---~Fréchet Audio Distance (FAD), similitud coseno sobre embeddings de audio
+    y error de reconstrucción~--- así como la estructura del espacio latente mediante
+    visualización UMAP y el estadístico U de Wilcoxon-Mann-Whitney.
+
+    \item Analizar el efecto de los hiperparámetros del sistema ---~dimensión del
+    espacio latente, valor de $\beta$ y estrategia de entrenamiento
+    (\emph{from checkpoint} vs.\ \emph{from scratch})~--- sobre la calidad de las
+    interpolaciones.
+
+    \item Construir una aplicación interactiva de síntesis en tiempo real que
+    permita explorar el espacio de timbres interpolados mediante el control
+    del parámetro $\alpha$ de interpolación y las coordenadas del espacio latente.
+\end{enumerate}
+
 \section*{Actividades y metodología}
 
+\textbf{1. Recopilación y preprocesamiento de datos.}
+Se utilizan cuatro conjuntos de datos de audio monofónico, uno por instrumento:
+GuitarSet~\cite{xi2019guitarset} para guitarra, VocalSet~\cite{wilkins2018vocalset}
+para voz, FiloBass~\cite{riley2023filobass} para bajo, y grabaciones propias para piano.
+Cada archivo de audio se remuestrea a 22050~Hz y se transforma a espectrograma de
+magnitud mediante STFT con ventana de Hann de 2048 muestras y salto de 512 muestras,
+obteniendo vectores de 1025 dimensiones por frame. Los espectrogramas se expresan en
+escala logarítmica (dB), se recortan a un umbral mínimo de $-60$~dB y se normalizan
+al rango $[0, 1]$.
+
+\textbf{2. Diseño y entrenamiento del modelo VAE.}
+La arquitectura consiste en un encoder con capas lineales de dimensiones
+$(1025, 1024, 512, 256, 128, 64, 32, 16, 8, 4)$, cada una seguida de BatchNorm y
+activación ELU, que proyecta a dos cabezas ($\mu$ y $\log\sigma^2$) para el truco de
+reparametrización. El decoder es la arquitectura espejo. La función de pérdida combina
+error cuadrático medio (MSE) de reconstrucción y $\beta$ por la divergencia KL.
+El entrenamiento sigue una estrategia de dos etapas: primero se entrena un \emph{modelo base}
+sobre todos los instrumentos combinados, y luego se realiza \emph{fine-tuning} por
+instrumento partiendo del checkpoint del modelo base. Se entrenan variantes con
+$\beta = 0$ (autoencoder estándar) y $\beta = 0{,}001$.
+
+\textbf{3. Interpolación de modelos.}
+Dados dos modelos especializados en instrumentos A y B, se genera un modelo intermedio
+interpolando los pesos de ambos. Se implementa SLERP, que interpola sobre la
+hiperesfera unitaria entre los vectores de parámetros aplanados de cada capa,
+con \emph{fallback} a LERP cuando los vectores son cuasi-paralelos. El parámetro
+$\alpha \in [0, 1]$ controla la posición en el morfismo: $\alpha = 0$ corresponde
+al instrumento A y $\alpha = 1$ al instrumento B.
+
+\textbf{4. Diseño experimental.}
+Se conducen los siguientes experimentos: (a)~barrido de dimensión latente
+$(2, 3, 4, 6, 8)$ por instrumento, con 5 repeticiones, comparando VAE y $\beta$-VAE;
+(b)~variación de $\beta$ en $(0;\; 10^{-5};\; 10^{-4};\; 10^{-3};\; 10^{-2})$ sobre
+el modelo base; (c)~interpolación cruzada entre todos los pares de instrumentos,
+evaluando para 11 valores de $\alpha$ equiespaciados entre 0 y 1;
+(d)~comparación de estrategias de entrenamiento (\emph{from checkpoint} vs.\
+\emph{from scratch}).
+
+\textbf{5. Evaluación.}
+La calidad de los timbres interpolados se mide con: (a)~FAD, calculada a partir de
+embeddings extraídos con el modelo MERT-v1-95M, que cuantifica la distancia entre las
+distribuciones de audio generado y de referencia; (b)~similitud coseno sobre embeddings
+promediados; (c)~MSE de reconstrucción en validación. La estructura del espacio latente
+se analiza mediante proyecciones UMAP en 2D y el estadístico U multidimensional de
+Wilcoxon-Mann-Whitney para cuantificar la separación entre clusters de instrumentos.
+
+\textbf{6. Aplicación interactiva.}
+Se desarrolla una interfaz con Streamlit que permite seleccionar dos instrumentos,
+ajustar el parámetro $\alpha$ de interpolación y las cuatro coordenadas del espacio
+latente, y escuchar en tiempo real el audio sintetizado por el decoder del modelo
+interpolado.
 
 \section*{Plazos y factibilidad}
+
+El trabajo se organiza en un período estimado de 6 meses, según el siguiente cronograma:
+
+\begin{itemize}
+    \item \textbf{Mes 1--2:} Preprocesamiento de datos, implementación de la arquitectura
+    VAE y entrenamiento del modelo base y los modelos por instrumento. Implementación
+    de la interpolación SLERP/LERP de pesos.
+    \item \textbf{Mes 3--4:} Ejecución de los experimentos (barrido de dimensión latente,
+    variación de $\beta$, interpolaciones cruzadas). Implementación y ejecución de las
+    métricas de evaluación (FAD, similitud coseno, UMAP).
+    \item \textbf{Mes 5:} Desarrollo de la aplicación interactiva de síntesis.
+    Análisis de resultados y generación de visualizaciones.
+    \item \textbf{Mes 6:} Redacción de la tesis y revisión final.
+\end{itemize}
+
+El proyecto es factible dado que: (a)~los conjuntos de datos necesarios son públicos y
+ya se encuentran recopilados (GuitarSet~\cite{xi2019guitarset},
+VocalSet~\cite{wilkins2018vocalset}, FiloBass~\cite{riley2023filobass});
+(b)~se dispone de infraestructura de cómputo con GPU para el entrenamiento;
+(c)~existe un código base funcional que incluye el pipeline de audio, la arquitectura VAE,
+los scripts de entrenamiento, la interpolación de modelos y la evaluación con FAD,
+sobre el cual se iterará durante el desarrollo de la tesis;
+(d)~las bibliotecas utilizadas (PyTorch, PyTorch Lightning, librosa, UMAP, Streamlit)
+son maduras y bien documentadas.
  
 
 
 \bibliographystyle{acm}
 
  \small
- \bibliography{bibliografia.bib}
+ \bibliography{bibliografia}
 \end{document}
