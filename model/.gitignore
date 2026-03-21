@@ -29,10 +29,13 @@ metrics_history_vae.csv
 # Experiments outputs
 
 outputs/
-interpolation_outputs*/
+interpolation_audio_*/
 interpolation_regime_experiment*/
 interpolation_random_*/
 data_short_tracks/
 results_*/
 AudiosInterpolacion/
+Audios Interpolación/
+AudiosInterpolacion-Nuevos/
+AudiosInterpolacion-Nuevos-Linear/
 test.wav

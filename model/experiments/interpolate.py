@@ -3,6 +3,7 @@ import csv
 import json
 import math
 import random
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -13,14 +14,15 @@ import numpy as np
 import torch
 import yaml
 
-from VariationalAutoEncoder import VariationalAutoEncoder
-from audio_comparator import (
-    get_audio_similarity_fad,
-    get_embedding,
-    get_matrix_embedding,
-)
-from audio_utils import get_spectrograms_from_audios, save_audio
-from model.scripts.vae_predict import predict_audio
+# Allow running this script directly via `python experiments/interpolate.py`
+# by making the parent `model/` directory importable.
+MODEL_DIR = Path(__file__).resolve().parents[1]
+if str(MODEL_DIR) not in sys.path:
+    sys.path.insert(0, str(MODEL_DIR))
+
+from VariationalAutoEncoder import VariationalAutoEncoder # noqa: E402
+from audio_utils import get_spectrograms_from_audios, save_audio # noqa: E402
+from scripts.vae_predict import predict_audio # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -62,7 +64,6 @@ class ModelArtifact:
     checkpoint_path: Path
     hparams: dict[str, Any]
 
-
 def interpolar_vae(
     model_a: VariationalAutoEncoder,
     model_b: VariationalAutoEncoder,
@@ -70,27 +71,85 @@ def interpolar_vae(
     encoder_layers,
     decoder_layers,
     latent_dim,
+    interpolation_mode: str = "slerp",
 ) -> VariationalAutoEncoder:
+    # 1. Obtener los diccionarios de estado (parámetros)
     theta_a = model_a.state_dict()
     theta_b = model_b.state_dict()
 
+    # 2. Crear un nuevo diccionario para los pesos interpolados
     theta_interp = collections.OrderedDict()
+
+    def _slerp_tensor(tensor_a: torch.Tensor, tensor_b: torch.Tensor, t: float):
+        # SLERP está definido para vectores en una esfera; aplanamos y luego restauramos forma.
+        original_dtype = tensor_a.dtype
+        vec_a = tensor_a.reshape(-1)
+        vec_b = tensor_b.reshape(-1)
+
+        if not torch.is_floating_point(vec_a):
+            return tensor_a if t < 0.5 else tensor_b
+
+        vec_a_f = vec_a.float()
+        vec_b_f = vec_b.float()
+
+        norm_a = torch.norm(vec_a_f)
+        norm_b = torch.norm(vec_b_f)
+        if norm_a.item() == 0.0 or norm_b.item() == 0.0:
+            interpolated = (1.0 - t) * vec_a_f + t * vec_b_f
+            return interpolated.reshape_as(tensor_a).to(dtype=original_dtype)
+
+        unit_a = vec_a_f / norm_a
+        unit_b = vec_b_f / norm_b
+
+        dot = torch.clamp(torch.sum(unit_a * unit_b), -1.0, 1.0)
+
+        # Si el ángulo es muy pequeño (o casi opuesto), hacemos fallback a LERP por estabilidad.
+        if torch.abs(dot) > 0.9995:
+            interpolated = (1.0 - t) * vec_a_f + t * vec_b_f
+        else:
+            theta = torch.acos(dot)
+            sin_theta = torch.sin(theta)
+            w1 = torch.sin((1.0 - t) * theta) / sin_theta
+            w2 = torch.sin(t * theta) / sin_theta
+            interpolated = w1 * vec_a_f + w2 * vec_b_f
+
+        return interpolated.reshape_as(tensor_a).to(dtype=original_dtype)
+
+    if interpolation_mode not in {"linear", "slerp"}:
+        raise ValueError(
+            f"interpolation_mode inválido: {interpolation_mode}. Usa 'linear' o 'slerp'."
+        )
+
+    # 3. Iterar sobre todos los parámetros
     for key in theta_a:
-        if key not in theta_b:
+        if key in theta_b:
+            # 4. Calcular la interpolación configurada (lineal o SLERP)
+            if interpolation_mode == "slerp":
+                theta_interp[key] = _slerp_tensor(theta_a[key], theta_b[key], alpha)
+            else:
+                tensor_a = theta_a[key]
+                tensor_b = theta_b[key]
+                if not torch.is_floating_point(tensor_a):
+                    theta_interp[key] = tensor_a if alpha < 0.5 else tensor_b
+                else:
+                    theta_interp[key] = (1.0 - alpha) * tensor_a + alpha * tensor_b
+        else:
+            # Esto no debería pasar si las arquitecturas son idénticas
             raise KeyError(
                 f"Clave '{key}' no encontrada en model_b. Las arquitecturas no coinciden."
             )
-        theta_interp[key] = (1.0 - alpha) * theta_a[key] + alpha * theta_b[key]
 
+    # 5. Crear una nueva instancia del modelo VAE
+    #    ¡Importante! No pasamos 'checkpoint_path' aquí.
     modelo_interpolado = VariationalAutoEncoder(
         encoder_layers=encoder_layers,
         decoder_layers=decoder_layers,
         latent_dim=latent_dim,
     )
+
+    # 6. Cargar los pesos interpolados en el nuevo modelo
     modelo_interpolado.load_state_dict(theta_interp)
-    modelo_interpolado.eval()
-    modelo_interpolado.encoder.eval()
-    modelo_interpolado.decoder.eval()
+
     return modelo_interpolado
 
 
@@ -1277,7 +1336,7 @@ def main():
         "project_root": ".",
         "data_root": "data_test",
         "data_ground_truth": "data_test_gt",
-        "output_dir": "interpolation_random_25_samples_ckpt_vs_scratch",
+        "output_dir": "interpolation_random_25_samples_ckpt_vs_scratch_gaussian_latest2",
         "instruments": "piano,guitar,voice",
         "anchor_instrument": "piano",
         "regimes": "checkpoint_beta,checkpoint_no_beta,scratch_beta,scratch_no_beta",
@@ -1304,4 +1363,9 @@ def main():
 
 
 if __name__ == "__main__":
+    from audio_comparator import ( # noqa: E402
+        get_audio_similarity_fad,
+        get_embedding,
+        get_matrix_embedding,
+    )
     main()
