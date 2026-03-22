@@ -4,9 +4,14 @@ from pathlib import Path
 
 import torch
 import yaml
+import sys
+
+MODEL_DIR = Path(__file__).resolve().parents[1]
+if str(MODEL_DIR) not in sys.path:
+    sys.path.insert(0, str(MODEL_DIR))
 
 from audio_utils import get_spectrograms_from_audios
-from VariationalAutoEncoder import VariationalAutoEncoder
+from VariationalAutoEncoder import VariationalAutoEncoder, reparameterize
 
 INSTRUMENTS = ["piano", "guitar", "vocals", "bass"]
 INSTRUMENT_DIR_NAMES = {
@@ -73,12 +78,12 @@ def find_audio_files(data_root: Path, instrument_key: str, max_files: int | None
     return files
 
 
-def compute_z_stats(model, hps, audio_files, device: str):
+def compute_z_stats(model, hps, audio_files, device: str, use_reparameterize: bool):
     if not audio_files:
         raise ValueError("No se encontraron audios para este instrumento.")
 
-    sum_mu = None
-    sum_mu_sq = None
+    sum_z = None
+    sum_z_sq = None
     total_frames = 0
 
     model.to(device)
@@ -97,21 +102,25 @@ def compute_z_stats(model, hps, audio_files, device: str):
         X = X.to(device)
 
         with torch.no_grad():
-            mu, _ = model.encoder(X)
+            mu, logvar = model.encoder(X)
+            if use_reparameterize:
+                z = reparameterize(mu, logvar)
+            else:
+                z = mu
 
-        if sum_mu is None:
-            sum_mu = torch.zeros(mu.shape[1], device=device)
-            sum_mu_sq = torch.zeros(mu.shape[1], device=device)
+        if sum_z is None:
+            sum_z = torch.zeros(z.shape[1], device=device)
+            sum_z_sq = torch.zeros(z.shape[1], device=device)
 
-        sum_mu += mu.sum(dim=0)
-        sum_mu_sq += (mu**2).sum(dim=0)
-        total_frames += mu.shape[0]
+        sum_z += z.sum(dim=0)
+        sum_z_sq += (z**2).sum(dim=0)
+        total_frames += z.shape[0]
 
     if total_frames == 0:
         raise ValueError("No se obtuvieron frames para calcular estadisticas.")
 
-    mean = sum_mu / total_frames
-    var = sum_mu_sq / total_frames - mean**2
+    mean = sum_z / total_frames
+    var = sum_z_sq / total_frames - mean**2
     std = torch.sqrt(torch.clamp(var, min=0.0))
 
     return mean.cpu(), std.cpu(), total_frames
@@ -142,7 +151,7 @@ def main():
         default="checkpoint",
         choices=["checkpoint", "scratch"],
     )
-    parser.add_argument("--data-root", default=None)
+    parser.add_argument("--data-root", default="data_instruments")
     parser.add_argument("--max-files", type=int, default=25)
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--print-format", default="python", choices=["python", "json"])
@@ -153,6 +162,7 @@ def main():
     results = {}
     stats = {}
     latent_dim = None
+    use_reparameterize = args.beta_config != "no_beta"
 
     for instrument in INSTRUMENTS:
         model, hps = load_model(instrument, args.beta_config, args.training_source)
@@ -164,7 +174,11 @@ def main():
             continue
 
         mean, std, total_frames = compute_z_stats(
-            model, hps, audio_files, device=args.device
+            model,
+            hps,
+            audio_files,
+            device=args.device,
+            use_reparameterize=use_reparameterize,
         )
 
         results[instrument] = [round(v, 5) for v in mean.tolist()]
@@ -177,6 +191,7 @@ def main():
     print("Latent dim:", latent_dim)
     print("Data root:", data_root)
     print("Beta config:", args.beta_config, "Training:", args.training_source)
+    print("Z sampling:", "reparameterize(mu, logvar)" if use_reparameterize else "mu")
 
     for instrument in sorted(stats.keys()):
         info = stats[instrument]
