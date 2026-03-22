@@ -15,33 +15,20 @@ from VariationalAutoEncoder import VariationalAutoEncoder
 
 # --- Constantes ---
 
-INSTRUMENTS = ["piano", "guitar", "vocals", "bass"]
-INSTRUMENT_DIR_NAMES = {
-    "piano": "piano",
-    "guitar": "guitar",
-    "vocals": "voice",
-    "bass": "bass",
-}
+INSTRUMENTS = ["piano", "guitar", "voice", "bass"]
 XMAX_DEFAULTS = {
     "piano": 150.0,
     "guitar": 150.0,
-    "vocals": 140.0,
+    "voice": 140.0,
     "bass": 120.0,
 }
 INITIAL_Z = [0.0, 0.0, 0.0, 0.0]
-# Z_INIT_BY_INSTRUMENT = {
-#     "piano": [-0.00056, 0.10692, -0.02252, -0.09278],
-#     "guitar": [-0.00103, 0.1799, -0.11215, -0.21214],
-#     "vocals": [0.00184, 0.05723, 0.19695, 0.62355],
-#     "bass": [7e-05, 0.14084, -2e-05, 0.06244],
-# }
 Z_INIT_BY_INSTRUMENT = {
     "piano": [0.00015, 0.10694, -0.02233, -0.09316],
     "guitar": [-0.00189, 0.17932, -0.11366, -0.21192],
-    "vocals": [-0.02621, 0.05876, 0.19291, 0.61994],
+    "voice": [-0.02621, 0.05876, 0.19291, 0.61994],
     "bass": [-0.0036, 0.14141, -0.00059, 0.06074],
 }
-
 
 NUM_FRAMES = 64
 
@@ -52,12 +39,11 @@ NUM_FRAMES = 64
 @st.cache_resource
 def load_model(instrument_key: str, beta_config: str, training_source: str):
     """Carga un modelo VAE desde checkpoint. Resultado cacheado por Streamlit."""
-    dir_name = INSTRUMENT_DIR_NAMES[instrument_key]
     model_dir = Path(
         "model",
         "inference_models",
         f"instruments_from_{training_source}",
-        f"{dir_name}_from_{training_source}_{beta_config}",
+        f"{instrument_key}_from_{training_source}_{beta_config}",
         "version_0",
     )
 
@@ -159,60 +145,82 @@ def generate_audio(model, hps, z_values, xmax, num_frames):
     return audio
 
 
+# --- Callbacks ---
+
+
+def set_z_for_instrument(instrument_name):
+    """Setea los valores de Z en session_state para un instrumento dado."""
+    z_vals = Z_INIT_BY_INSTRUMENT[instrument_name]
+    for i, val in enumerate(z_vals):
+        st.session_state[f"z_{i}"] = val
+
+
 # --- UI ---
 
 st.set_page_config(page_title="VAE Audio Interpolator", layout="wide")
 st.title("VAE Audio Interpolator")
 
-play_enabled = st.toggle("Play", value=st.session_state.get("play_enabled", False))
-st.session_state["play_enabled"] = play_enabled
-
-# Sidebar: controles
+# Sidebar: solo configuración técnica
 with st.sidebar:
-    st.header("Instrumentos")
-    inst_a = st.selectbox("Instrumento A", INSTRUMENTS, index=0)
-    inst_b = st.selectbox("Instrumento B", INSTRUMENTS, index=1)
-
-    st.header("Configuración de entrenamiento")
+    st.header("Configuración")
     use_beta = st.toggle("Beta encoding (beta_0.001)", value=True)
     use_checkpoint = st.toggle("Desde checkpoint", value=True)
 
     beta_config = "beta_0.001" if use_beta else "no_beta"
     training_source = "checkpoint" if use_checkpoint else "scratch"
 
-    st.header("Interpolación")
+# Main: Instrumentos y alpha
+col_inst_a, col_inst_b, col_alpha = st.columns([1, 1, 2])
+with col_inst_a:
+    inst_a = st.selectbox("Instrumento A", INSTRUMENTS, index=0)
+with col_inst_b:
+    inst_b = st.selectbox("Instrumento B", INSTRUMENTS, index=1)
+with col_alpha:
     if inst_a == inst_b:
-        st.info("Ambos instrumentos son iguales. Alpha no tendrá efecto.")
+        st.info("Mismo instrumento. Alpha sin efecto.")
     alpha = st.slider("Alpha", 0.0, 1.0, 0.5, step=0.01)
 
-    st.header("Espacio latente (Z)")
-    z_defaults = Z_INIT_BY_INSTRUMENT.get(inst_a, INITIAL_Z)
-    # z_default_b = Z_INIT_BY_INSTRUMENT.get(inst_b, INITIAL_Z)
-    # z_defaults = [(a + b) / 2.0 for a, b in zip(z_default_a, z_default_b)]
+# Main: Espacio latente (Z)
+st.subheader("Espacio latente (Z)")
 
-    z_source_key = (inst_a, inst_b)
-    if st.session_state.get("z_source_key") != z_source_key:
-        for i in range(len(z_defaults)):
-            st.session_state[f"z_{i}"] = z_defaults[i]
-        st.session_state["z_source_key"] = z_source_key
-
-    z_values = []
-    for i in range(4):
-        val = st.slider(
-            f"Z{i}",
-            -2.0,
-            2.0,
-            st.session_state.get(f"z_{i}", z_defaults[i]),
-            step=0.001,
-            key=f"z_{i}",
+# Botones quick-set
+btn_cols = st.columns(len(INSTRUMENTS))
+for idx, instrument in enumerate(INSTRUMENTS):
+    with btn_cols[idx]:
+        st.button(
+            instrument.capitalize(),
+            on_click=set_z_for_instrument,
+            args=(instrument,),
+            key=f"btn_z_{instrument}",
         )
-        z_values.append(val)
 
-    st.header("Ganancia")
-    default_xmax = (XMAX_DEFAULTS[inst_a] + XMAX_DEFAULTS[inst_b]) / 2.0
-    xmax = st.slider("Xmax", 0.0, 300.0, default_xmax, step=1.0)
+# Inicializar Z en session_state si es la primera vez
+if "z_0" not in st.session_state:
+    z_defaults = Z_INIT_BY_INSTRUMENT.get("piano", INITIAL_Z)
+    for i, val in enumerate(z_defaults):
+        st.session_state[f"z_{i}"] = val
 
-# Área principal: generación de audio
+# Sliders de Z
+z_values = []
+for i in range(4):
+    val = st.slider(
+        f"Z{i}",
+        -2.0,
+        2.0,
+        step=0.001,
+        key=f"z_{i}",
+    )
+    z_values.append(val)
+
+# Main: Ganancia
+st.subheader("Ganancia")
+default_xmax = (XMAX_DEFAULTS[inst_a] + XMAX_DEFAULTS[inst_b]) / 2.0
+xmax = st.slider("Xmax", 0.0, 300.0, default_xmax, step=1.0)
+
+# Main: Play y audio
+play_enabled = st.toggle("Play", value=st.session_state.get("play_enabled", False))
+st.session_state["play_enabled"] = play_enabled
+
 try:
     modelo, hps = get_interpolated_model(
         inst_a, inst_b, beta_config, training_source, alpha

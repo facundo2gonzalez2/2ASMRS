@@ -11,3 +11,5 @@ GEMINI.md
 *.fdb_latexmk
 *.fls
 *.synctex.gz
+
+.mypy_cache/

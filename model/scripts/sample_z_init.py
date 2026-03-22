@@ -13,22 +13,15 @@ if str(MODEL_DIR) not in sys.path:
 from audio_utils import get_spectrograms_from_audios
 from VariationalAutoEncoder import VariationalAutoEncoder, reparameterize
 
-INSTRUMENTS = ["piano", "guitar", "vocals", "bass"]
-INSTRUMENT_DIR_NAMES = {
-    "piano": "piano",
-    "guitar": "guitar",
-    "vocals": "voice",
-    "bass": "bass",
-}
+INSTRUMENTS = ["piano", "guitar", "voice", "bass"]
 SUPPORTED_EXTS = {".wav", ".mp3", ".flac", ".ogg", ".m4a"}
 
 
 def load_model(instrument_key: str, beta_config: str, training_source: str):
-    dir_name = INSTRUMENT_DIR_NAMES[instrument_key]
     model_dir = Path(
         "inference_models",
         f"instruments_from_{training_source}",
-        f"{dir_name}_from_{training_source}_{beta_config}",
+        f"{instrument_key}_from_{training_source}_{beta_config}",
         "version_0",
     )
 
@@ -61,8 +54,7 @@ def load_model(instrument_key: str, beta_config: str, training_source: str):
 
 
 def find_audio_files(data_root: Path, instrument_key: str, max_files: int | None):
-    dir_name = INSTRUMENT_DIR_NAMES[instrument_key]
-    instrument_dir = data_root / dir_name
+    instrument_dir = data_root / instrument_key
     if not instrument_dir.exists():
         return []
 

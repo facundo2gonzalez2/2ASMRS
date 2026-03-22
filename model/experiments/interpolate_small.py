@@ -202,15 +202,15 @@ def run_interpolation_latent_experiment(
         checkpoint_path=checkpoint_path_b,
     )
 
-    assert hps_a["encoder_layers"] == hps_b["encoder_layers"], (
-        "Las arquitecturas de los modelos no coinciden."
-    )
-    assert hps_a["decoder_layers"] == hps_b["decoder_layers"], (
-        "Las arquitecturas de los modelos no coinciden."
-    )
-    assert hps_a["latent_dim"] == hps_b["latent_dim"], (
-        "Las arquitecturas de los modelos no coinciden."
-    )
+    assert (
+        hps_a["encoder_layers"] == hps_b["encoder_layers"]
+    ), "Las arquitecturas de los modelos no coinciden."
+    assert (
+        hps_a["decoder_layers"] == hps_b["decoder_layers"]
+    ), "Las arquitecturas de los modelos no coinciden."
+    assert (
+        hps_a["latent_dim"] == hps_b["latent_dim"]
+    ), "Las arquitecturas de los modelos no coinciden."
 
     model_a.eval()
     model_b.eval()
@@ -452,8 +452,8 @@ def cross_interpolation(
 if __name__ == "__main__":
     instrument_a = "voice"
     instrument_b = "guitar"
-    beta = False
-    sampling_mode = 1  # 0 para encoded, 1 para gaussian
+    beta = True
+    sampling_mode = 0  # 0 para encoded, 1 para gaussian
 
     xmax_values = {
         "guitar": 130.0,
@@ -469,31 +469,38 @@ if __name__ == "__main__":
         "bass": [7e-05, 0.14084, -2e-05, 0.06244],
     }
 
+    Z_INIT_BY_INSTRUMENT_WITH_LOGVAR = {
+        "piano": [0.00015, 0.10694, -0.02233, -0.09316],
+        "guitar": [-0.00189, 0.17932, -0.11366, -0.21192],
+        "voice": [-0.02621, 0.05876, 0.19291, 0.61994],
+        "bass": [-0.0036, 0.14141, -0.00059, 0.06074],
+    }
+
     model_a_path = f"inference_models/instruments_from_checkpoint/{instrument_a}_from_checkpoint_{'beta_0.001' if beta else 'no_beta'}/version_0"
     model_b_path = f"inference_models/instruments_from_checkpoint/{instrument_b}_from_checkpoint_{'beta_0.001' if beta else 'no_beta'}/version_0"
 
     output_dir = f"interpolation_audio_{'encoded' if sampling_mode == 0 else 'gaussian'}_{instrument_a}_to_{instrument_b}_{'beta_0.001' if beta else 'no_beta'}/"
 
-    # run_interpolation_latent_experiment(
-    #     model_a_path,
-    #     model_b_path,
-    #     output_dir,
-    #     sampling_mode="encoded" if sampling_mode == 0 else "gaussian",
-    #     duration_seconds=15.0,
-    #     random_seed=42,
-    #     model_a_xmax=xmax_values[instrument_a],
-    #     model_b_xmax=xmax_values[instrument_b],
-    #     start_alpha=0.0,
-    #     end_alpha=1.0,
-    #     start_z=Z_INIT_BY_INSTRUMENT[instrument_a],
-    #     end_z=Z_INIT_BY_INSTRUMENT[instrument_b],
-    # )
-
-    cross_interpolation(
-        random_seed=42,
+    run_interpolation_latent_experiment(
+        model_a_path,
+        model_b_path,
+        output_dir,
         sampling_mode="encoded" if sampling_mode == 0 else "gaussian",
-        xmax_values=xmax_values,
-        start_z_values=Z_INIT_BY_INSTRUMENT,
-        duration_seconds=20.0,
-        max_workers=4,
+        duration_seconds=15.0,
+        random_seed=42,
+        model_a_xmax=xmax_values[instrument_a],
+        model_b_xmax=xmax_values[instrument_b],
+        start_alpha=0.0,
+        end_alpha=1.0,
+        start_z=Z_INIT_BY_INSTRUMENT_WITH_LOGVAR[instrument_a],
+        end_z=Z_INIT_BY_INSTRUMENT_WITH_LOGVAR[instrument_b],
     )
+
+    # cross_interpolation(
+    #     random_seed=42,
+    #     sampling_mode="encoded" if sampling_mode == 0 else "gaussian",
+    #     xmax_values=xmax_values,
+    #     start_z_values=Z_INIT_BY_INSTRUMENT,
+    #     duration_seconds=20.0,
+    #     max_workers=4,
+    # )
