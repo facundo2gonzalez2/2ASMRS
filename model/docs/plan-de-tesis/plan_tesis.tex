@@ -32,7 +32,15 @@ propusieron el $\beta$-VAE, una variante que pondera el término KL con un hiper
 $\beta$ para controlar el balance entre calidad de reconstrucción y regularización del espacio
 latente, favoreciendo representaciones más estructuradas cuando $\beta > 0$.
 
-En el dominio del audio, Caillon y Esling~\cite{caillon2021rave} demostraron con RAVE que
+En el contexto de la síntesis y el modelado de sonido musical, Roche et al.~\cite{roche2019autoencodersmusicsoundmodeling}
+realizaron un estudio comparativo de distintas arquitecturas de autoencoders ---~lineales,
+superficiales, profundos, recurrentes y variacionales~--- aplicadas a la representación
+de espectrogramas de instrumentos musicales. Sus resultados mostraron que los modelos
+variacionales logran un mejor compromiso entre calidad de reconstrucción y regularización
+del espacio latente, sentando un precedente directo para el uso de VAEs en la generación
+de timbres.
+
+Posteriormente, en el dominio del audio, Caillon y Esling~\cite{caillon2021rave} demostraron con RAVE que
 los VAE pueden sintetizar audio de alta calidad en tiempo real, operando directamente sobre
 representaciones espectrales. Riera, Eguía y Zabaljáuregui~\cite{riera2017timbre} exploraron
 la construcción de espacios de timbre mediante autoencoders dispersos, mostrando que las
@@ -44,8 +52,7 @@ timbres, la generación de timbres intermedios entre instrumentos específicos p
 un problema abierto. Las técnicas habituales de interpolación operan en el espacio latente
 de un único modelo entrenado sobre múltiples instrumentos, lo cual limita la fidelidad
 de cada timbre individual. En este trabajo se propone un enfoque alternativo: entrenar
-modelos VAE especializados por instrumento y luego interpolar sus pesos mediante
-SLERP (\emph{Spherical Linear Interpolation}), generando modelos intermedios cuyos decoders
+modelos VAE especializados por instrumento y luego realizar una interpolación entre sus pesos, generando modelos intermedios cuyos decoders
 producen timbres híbridos. Este enfoque opera en el espacio de parámetros del modelo
 en lugar del espacio latente, preservando la capacidad reconstructiva de cada modelo
 especializado.
@@ -54,7 +61,7 @@ El sistema propuesto opera sobre espectrogramas de magnitud obtenidos mediante l
 Transformada de Fourier de Tiempo Corto (STFT), que son codificados por el encoder del VAE
 a un espacio latente de baja dimensionalidad (típicamente 4 dimensiones) y reconstruidos
 por el decoder. La evaluación de la calidad de las interpolaciones se realiza mediante la
-Fréchet Audio Distance (FAD), utilizando embeddings del modelo MERT para cuantificar la
+Fréchet Audio Distance (FAD)~\cite{gui2024adaptingfrechetaudiodistance}, utilizando embeddings del modelo MERT para cuantificar la
 distancia perceptual entre distribuciones de audio generado y audio de referencia.
 
 \section*{Objetivos}
@@ -75,14 +82,14 @@ parámetros del modelo.
     para la generación de modelos intermedios.
 
     \item Evaluar la calidad de los timbres generados mediante métricas objetivas
-    ---~Fréchet Audio Distance (FAD), similitud coseno sobre embeddings de audio
+    ---~Fréchet Audio Distance (FAD)~\cite{gui2024adaptingfrechetaudiodistance}, similitud coseno sobre embeddings de audio
     y error de reconstrucción~--- así como la estructura del espacio latente mediante
     visualización UMAP y el estadístico U de Wilcoxon-Mann-Whitney.
 
     \item Analizar el efecto de los hiperparámetros del sistema ---~dimensión del
     espacio latente, valor de $\beta$ y estrategia de entrenamiento
-    (\emph{from checkpoint} vs.\ \emph{from scratch})~--- sobre la calidad de las
-    interpolaciones.
+    (partiendo desde un modelo base vs. desde una semilla aleatoria)~--- sobre la calidad de las
+    interpolaciones y reconstrucciones.
 
     \item Construir una aplicación interactiva de síntesis en tiempo real que
     permita explorar el espacio de timbres interpolados mediante el control
@@ -94,7 +101,7 @@ parámetros del modelo.
 \textbf{1. Recopilación y preprocesamiento de datos.}
 Se utilizan cuatro conjuntos de datos de audio monofónico, uno por instrumento:
 GuitarSet~\cite{xi2019guitarset} para guitarra, VocalSet~\cite{wilkins2018vocalset}
-para voz, FiloBass~\cite{riley2023filobass} para bajo, y grabaciones propias para piano.
+para voz, FiloBass~\cite{riley2023filobass} para bajo, y grabaciones libres de derecho para piano.
 Cada archivo de audio se remuestrea a 22050~Hz y se transforma a espectrograma de
 magnitud mediante STFT con ventana de Hann de 2048 muestras y salto de 512 muestras,
 obteniendo vectores de 1025 dimensiones por frame. Los espectrogramas se expresan en
@@ -130,7 +137,7 @@ evaluando para 11 valores de $\alpha$ equiespaciados entre 0 y 1;
 \emph{from scratch}).
 
 \textbf{5. Evaluación.}
-La calidad de los timbres interpolados se mide con: (a)~FAD, calculada a partir de
+La calidad de los timbres interpolados se mide con: (a)~FAD~\cite{gui2024adaptingfrechetaudiodistance}, calculada a partir de
 embeddings extraídos con el modelo MERT-v1-95M, que cuantifica la distancia entre las
 distribuciones de audio generado y de referencia; (b)~similitud coseno sobre embeddings
 promediados; (c)~MSE de reconstrucción en validación. La estructura del espacio latente
