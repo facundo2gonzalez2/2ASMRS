@@ -6,13 +6,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **2ASMRS** (Audio Autoencoder for Sound Morphing in Realtime Synthesizer) — a Variational Autoencoder system that learns latent representations of audio spectrograms, enabling real-time sound morphing between instruments (piano, guitar, vocals, bass). The Python model code lives in `model/`; the C++ synthesizer plugin (`synthetizer/`) and supplementary scripts (`extra/`) are not currently active.
 
+## Virtual Environment
+
+The Python virtual environment is at `.venv/` in the project root. Always use it when running Python commands:
+
+```bash
+source .venv/bin/activate
+# or call directly: .venv/bin/python
+```
+
 ## Commands
 
-All Python commands run from `model/` as the working directory.
+All Python commands run from `model/` as the working directory using the project venv.
 
 ```bash
 # Install dependencies
-pip install -r model/requirements.txt
+.venv/bin/pip install -r model/requirements.txt
 
 # Train the full VAE pipeline (base models + per-instrument fine-tuning)
 cd model && python run_vae.py
