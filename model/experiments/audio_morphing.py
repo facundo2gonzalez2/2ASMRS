@@ -89,7 +89,8 @@ def main():
     source = "checkpoint"  # "checkpoint" or "scratch"
     beta = "beta_0.001"  # "beta_0.001" or "no_beta"
     interpolation_mode = "slerp"  # "linear" or "slerp"
-    output_dir = "audio_morphing_output"
+    phase_reconstruction = "griffinlim"  # "griffinlim", "pghi", or "random"
+    output_dir = f"audio_morphing_output_{phase_reconstruction}"
     # ────────────────────────────────────────────────────
 
     if audio_a is None:
@@ -250,12 +251,14 @@ def main():
         audio = predict_audio(
             predicted_specgram=specgram,
             hps=hps_a,
-            phase_option="griffinlim",
+            phase_option=phase_reconstruction,
             frames=total_frames,
             return_audio=True,
         )
     except Exception as err:
-        print(f"[WARN] Griffin-Lim fallo ({err}). Reintentando con phase='random'.")
+        print(
+            f"[WARN] {phase_reconstruction} fallo ({err}). Reintentando con phase='random'."
+        )
         audio = predict_audio(
             predicted_specgram=specgram,
             hps=hps_a,
@@ -290,6 +293,7 @@ def main():
         "source": source,
         "beta": beta,
         "interpolation_mode": interpolation_mode,
+        "phase_reconstruction": phase_reconstruction,
     }
     meta_path = output_path / f"morphing_{instrument_a}_to_{instrument_b}_metadata.yaml"
     with open(meta_path, "w") as f:

@@ -151,7 +151,7 @@ def save_latentscore(Z, hop_length, sr, path):
 
 
 def spectrogram2audio(
-    Y, db_min_norm, phase, hop_length, win_length, in_db, griffinlim=False
+    Y, db_min_norm, phase, hop_length, win_length, in_db, griffinlim=False, pghi=False
 ):
     Y = torch.nan_to_num(Y, nan=0.0, posinf=0.0, neginf=0.0)
     Y = torch.clamp(Y, min=0.0)
@@ -164,7 +164,22 @@ def spectrogram2audio(
     magnitude = torch.nan_to_num(magnitude, nan=0.0, posinf=0.0, neginf=0.0)
     magnitude = torch.clamp(magnitude, min=0.0)
 
-    if griffinlim:
+    if pghi:
+        from tifresi.stft import GaussTF
+        stft_system = GaussTF(hop_size=hop_length, stft_channels=win_length)
+        mag_np = magnitude.detach().cpu().numpy().T  # [freq_bins, frames]
+        n_frames = mag_np.shape[1]
+        # ltfatpy requires n_frames * hop_length divisible by win_length
+        frames_per_window = win_length // hop_length
+        remainder = n_frames % frames_per_window
+        if remainder != 0:
+            pad_frames = frames_per_window - remainder
+            mag_np = np.pad(mag_np, ((0, 0), (0, pad_frames)), mode="constant")
+        raw_audio = stft_system.invert_spectrogram(mag_np)
+        # Trim padding
+        expected_len = n_frames * hop_length
+        audio = torch.tensor(raw_audio[:expected_len])
+    elif griffinlim:
         audio = torch.tensor(
             librosa.griffinlim(
                 magnitude.detach().cpu().numpy().T,

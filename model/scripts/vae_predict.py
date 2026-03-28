@@ -42,6 +42,7 @@ def predict_audio(
 
         if phase_option == "pv":
             griffinlim = False
+            pghi = False
             phase = torch.rand(Y_.shape[1]) * torch.pi * 2
             grid = torch.meshgrid(
                 torch.arange(0, frames, dtype=torch.float64),
@@ -52,10 +53,16 @@ def predict_audio(
             phase = phase + freqs * 2 * torch.pi * dt * grid
         elif phase_option == "random":
             griffinlim = False
+            pghi = False
             phase = (torch.rand(Y_.shape) * 2 - 1) * torch.pi
         elif phase_option == "griffinlim":
             phase = (torch.rand(Y_.shape) * 2 - 1) * torch.pi
             griffinlim = True
+            pghi = False
+        elif phase_option == "pghi":
+            phase = None
+            griffinlim = False
+            pghi = True
         else:
             raise ValueError(f"phase_option inválido: {phase_option}")
 
@@ -68,6 +75,7 @@ def predict_audio(
                 wl,
                 hps["spec_in_db"],
                 griffinlim=griffinlim,
+                pghi=pghi,
             )
             .cpu()
             .numpy()
