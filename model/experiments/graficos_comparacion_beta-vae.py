@@ -16,14 +16,14 @@ output_dir = args.output_dir
 # Crear carpeta de imágenes si no existe
 os.makedirs(output_dir, exist_ok=True)
 
-model = "tb_logs_vae/fur_elise_piano"
+model_base = "experiments_models/base_model_beta_variation"
 
-beta_versions = {
-    "version_0": 0.01,
-    "version_1": 0.001,
-    "version_2": 0.0001,
-    "version_3": 0.00001,
-    "version_4": 0,
+beta_dirs = {
+    "base_model_beta_0.01": 0.01,
+    "base_model_beta_0.001": 0.001,
+    "base_model_beta_0.0001": 0.0001,
+    "base_model_beta_1e-05": 0.00001,
+    "base_model_beta_0": 0,
 }
 
 plt.style.use("seaborn-v0_8-whitegrid")
@@ -64,8 +64,8 @@ ax_kl_zoom[1].set_title("Validation KL Divergence")
 ax_kl_zoom[1].set_xlabel("Paso / Etapa")
 ax_kl_zoom[1].set_ylabel("KL")
 
-for version, beta in beta_versions.items():
-    csv_path = os.path.join(model, version, "metrics_history_vae.csv")
+for dir_name, beta in beta_dirs.items():
+    csv_path = os.path.join(model_base, dir_name, "version_0", "metrics_history_vae.csv")
     if not os.path.exists(csv_path):
         print(f"Advertencia: No se encontró {csv_path}")
         continue

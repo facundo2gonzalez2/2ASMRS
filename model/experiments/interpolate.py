@@ -2,6 +2,7 @@ import collections
 import csv
 import json
 import math
+import os
 import random
 import sys
 from dataclasses import dataclass
@@ -1336,7 +1337,7 @@ def main():
         "project_root": ".",
         "data_root": "data_test",
         "data_ground_truth": "data_test_gt",
-        "output_dir": "interpolation_random_25_samples_ckpt_vs_scratch_gaussian_latest2",
+        "output_dir": os.environ.get("OUTPUT_DIR", "interpolation_results"),
         "instruments": "piano,guitar,voice",
         "anchor_instrument": "piano",
         "regimes": "checkpoint_beta,checkpoint_no_beta,scratch_beta,scratch_no_beta",

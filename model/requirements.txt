@@ -13,4 +13,5 @@ multidimensional-wilcoxon-mann-whitney
 scipy
 transformers
 streamlit
+umap-learn
 # kadtk

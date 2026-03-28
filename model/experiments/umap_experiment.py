@@ -5,6 +5,13 @@ import torch
 import umap
 import matplotlib.pyplot as plt
 import numpy as np
+import sys
+
+# Allow running this script directly via `python experiments/interpolate.py`
+# by making the parent `model/` directory importable.
+MODEL_DIR = Path(__file__).resolve().parents[1]
+if str(MODEL_DIR) not in sys.path:
+    sys.path.insert(0, str(MODEL_DIR))
 
 from audio_utils import (
     get_spectrograms_from_audios,
@@ -184,8 +191,8 @@ def get_latent_projection(
 
 def run_comparison(
     audio_path="umap_experiment/fur_elise_piano_cut.mp3",
-    model_path_1="experiments_models/experiment_latent_dim_beta_piano_small/beta_vae_latentdim_8/version_0",
-    model_path_2="experiments_models/experiment_latent_dim_piano_small/vae_latentdim_3/version_0",
+    model_path_1="experiments_models/experiment_latent_dim_piano/beta_vae_latentdim_8/version_0",
+    model_path_2="experiments_models/experiment_latent_dim_piano/vae_latentdim_3/version_0",
     output_img_path="umap_experiment/comparison_trajectory_piano.png",
     trim_silence=False,
     remove_all_silence=False,
@@ -280,7 +287,7 @@ def run_comparison(
 
 
 def run_model_base_comparison(
-    base_model_path="inference_models/base_model/base_model_beta/version_0",
+    base_model_path="inference_models/base_model/base_model_beta_0.001/version_0",
     output_img_path="umap_experiment/base_model_instruments_umap_new_beta_test.png",
     trim_silence=True,
     remove_all_silence=True,
@@ -405,4 +412,4 @@ def run_model_base_comparison(
 
 
 if __name__ == "__main__":
-    Fire(run_model_base_comparison)
+    Fire()

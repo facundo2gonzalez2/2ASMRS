@@ -38,20 +38,20 @@ beta_latentdim_experiments = [
 ]
 
 experiments = [
-    ("experiments_models/experiment_latent_dim_voice_small", "Voice"),
-    ("experiments_models/experiment_latent_dim_piano_small", "Piano"),
-    ("experiments_models/experiment_latent_dim_bass_small", "Bass"),
-    ("experiments_models/experiment_latent_dim_guitar_small", "Guitar"),
+    ("experiments_models/experiment_latent_dim_voice", "Voice"),
+    ("experiments_models/experiment_latent_dim_piano", "Piano"),
+    ("experiments_models/experiment_latent_dim_bass", "Bass"),
+    ("experiments_models/experiment_latent_dim_guitar", "Guitar"),
 ]
 
 beta_experiments = [
-    ("experiments_models/experiment_latent_dim_beta_voice_small", "Voice"),
-    ("experiments_models/experiment_latent_dim_beta_piano_small", "Piano"),
-    ("experiments_models/experiment_latent_dim_beta_bass_small", "Bass"),
-    ("experiments_models/experiment_latent_dim_beta_guitar_small", "Guitar"),
+    ("experiments_models/experiment_latent_dim_voice", "Voice"),
+    ("experiments_models/experiment_latent_dim_piano", "Piano"),
+    ("experiments_models/experiment_latent_dim_bass", "Bass"),
+    ("experiments_models/experiment_latent_dim_guitar", "Guitar"),
 ]
 
-versions = [f"version_{i}" for i in range(6)]
+versions = [f"version_{i}" for i in range(5)]
 beta_versions = [f"version_{i}" for i in range(5)]
 
 # --- Carga VAE Standard ---
