@@ -166,8 +166,8 @@ def experiment_latent_dim_instruments(beta, kwargs):
             ]
 
             for encoder_layers, latent_dim in arqs:
-                log_path = f"experiment_latent_dim_beta_{path.name}_small" if beta > 0 else f"experiment_latent_dim_{path.name}_small"
-                run_name = f"beta_vae_latentdim_{latent_dim}"
+                log_path = f"experiment_latent_dim_{path.name}"
+                run_name = f"beta_vae_latentdim_{latent_dim}" if beta > 0 else f"vae_latentdim_{latent_dim}"
                 print("=" * 60)
                 print(f"Running experiment: {run_name}")
                 train(
@@ -328,9 +328,8 @@ def experiment_base_model_beta_variation(kwargs):
             # Load all wavfiles in directory
             audio_files.extend(list(path.glob("*.*")))
 
-    # betas = [0.01, 0.001, 0.0001, 0.00001, 0]
-    betas = [0] # Temporary fix
-
+    betas = [0.01, 0.001, 0.0001, 0.00001, 0]
+    
     for beta in betas:
         now = datetime.now()
         train(

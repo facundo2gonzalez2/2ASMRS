@@ -6,11 +6,9 @@ All in `model/experiments_models`
 
 - base_model_beta_variation: 5 versions for beta in `[0.01, 0.001, 0.0001, 0.00001, 0]`. 
 
-- experiment_latent_dim_{instrument}_small
-    - vae_latentdim_{n} (2,3,4,6,8), 5 versions each
-
-- experiment_latent_dim_beta_{instrument}_small
+- experiment_latent_dim_{instrument}
     - beta_vae_latentdim_{n}, 5 versions each
+    - vae_latentdim_{n} (2,3,4,6,8), 5 versions each
 
 - experiment_latent_dim_base_model
     - vae_latentdim_{n} (2,3,4,6,8), 5 versions each
