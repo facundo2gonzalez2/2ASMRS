@@ -9,10 +9,10 @@ MODEL_DIR = Path(__file__).resolve().parents[1]
 if str(MODEL_DIR) not in sys.path:
     sys.path.insert(0, str(MODEL_DIR))
 
-from VariationalAutoEncoder import VariationalAutoEncoder  # noqa: E402
-from scripts.vae_predict import predict_audio  # noqa: E402
-from audio_utils import get_spectrograms_from_audios  # noqa: E402
-from experiments.interpolate import interpolar_vae  # noqa: E402
+from VariationalAutoEncoder import VariationalAutoEncoder
+from scripts.vae_predict import predict_audio
+from audio_utils import get_spectrograms_from_audios
+from experiments.interpolate import interpolar_vae
 
 
 def _load_instrument_model(instrument, source, beta):
@@ -62,13 +62,12 @@ def _discover_audio(instrument):
 
 
 def _autogain(audio, target_peak=0.9):
-    peak = float(np.max(np.abs(audio))) if audio.size else 0.0
-    if peak <= 0.0:
-        raise RuntimeError("El audio generado es completamente silencioso (peak=0).")
-    if peak < 0.05:
-        gain = target_peak / peak
-        audio = np.clip(audio * gain, -1.0, 1.0)
-        print(f"Auto-gain aplicado: gain={gain:.2f}")
+    peak = float(np.max(np.abs(audio)))
+
+    gain = target_peak / peak
+    audio = np.clip(audio * gain, -1.0, 1.0)
+    print(f"Auto-gain aplicado: gain={gain:.2f}")
+
     return audio
 
 
@@ -79,13 +78,13 @@ def main():
     audio_a = None  # "data_instruments/voice/f1_arpeggios_c_slow_forte_a.wav"
     audio_b = "data_instruments/guitar/05_SS3-84-Bb_solo_hex.wav"
     duration_a = 2.5  # seconds
-    duration_transition = 3.5
+    duration_transition = 10
     duration_b = 2.5
     source = "checkpoint"  # "checkpoint" or "scratch"
     beta = "beta_0.001"  # "beta_0.001" or "no_beta"
     interpolation_mode = "slerp"  # "linear" or "slerp"
     phase_reconstruction = "griffinlim"  # "griffinlim", "pghi", or "random"
-    output_dir = f"audio_morphing_output_{phase_reconstruction}"
+    output_dir = f"audio_morphing_output_large_{phase_reconstruction}"
     # ────────────────────────────────────────────────────
 
     if audio_a is None:
@@ -232,7 +231,7 @@ def main():
         )
 
     # Concatenate and reconstruct audio
-    print("Reconstruyendo audio con Griffin-Lim...")
+    print(f"Reconstruyendo audio con {phase_reconstruction}...")
     specgram = torch.cat([spec_a] + transition_frames + [spec_b], dim=0)
 
     try:

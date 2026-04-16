@@ -46,9 +46,7 @@ def get_waveform(
             hop_length=silence_hop_length,
         )
         if len(intervals) > 0:
-            waveform_np = np.concatenate(
-                [waveform_np[start:end] for start, end in intervals], axis=0
-            )
+            waveform_np = np.concatenate([waveform_np[start:end] for start, end in intervals], axis=0)
         elif trim_silence:
             waveform_np, _ = librosa.effects.trim(
                 waveform_np,
@@ -150,9 +148,7 @@ def save_latentscore(Z, hop_length, sr, path):
     plt.savefig(path)
 
 
-def spectrogram2audio(
-    Y, db_min_norm, phase, hop_length, win_length, in_db, griffinlim=False, pghi=False
-):
+def spectrogram2audio(Y, db_min_norm, phase, hop_length, win_length, in_db, griffinlim=False, pghi=False):
     Y = torch.nan_to_num(Y, nan=0.0, posinf=0.0, neginf=0.0)
     Y = torch.clamp(Y, min=0.0)
 
@@ -166,6 +162,7 @@ def spectrogram2audio(
 
     if pghi:
         from tifresi.stft import GaussTF
+
         stft_system = GaussTF(hop_size=hop_length, stft_channels=win_length)
         mag_np = magnitude.detach().cpu().numpy().T  # [freq_bins, frames]
         n_frames = mag_np.shape[1]
@@ -202,15 +199,13 @@ def spectrogram2audio(
 
 
 def save_audio(Y, db_min_norm, phase, hop_length, win_length, samplerate, path, in_db):
-    audio = spectrogram2audio(
-        Y, db_min_norm, phase, hop_length, win_length, in_db, griffinlim=False
-    )
+    audio = spectrogram2audio(Y, db_min_norm, phase, hop_length, win_length, in_db, griffinlim=False)
     output_path = Path(path)
 
     save_kwargs = {}
     if output_path.suffix.lower() == ".mp3":
         save_kwargs["format"] = "mp3"
-        save_kwargs["compression"] = torchaudio.io.CodecConfig(bit_rate=320)
+        save_kwargs["compression"] = torchaudio.io.CodecConfig(bit_rate=320)  # type: ignore
 
     torchaudio.save(
         output_path,
