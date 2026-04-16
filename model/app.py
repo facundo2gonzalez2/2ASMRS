@@ -52,9 +52,7 @@ def load_model(instrument_key: str, beta_config: str, training_source: str):
 
     ckpt_files = list(Path(model_dir, "checkpoints").glob("*.ckpt"))
     if not ckpt_files:
-        raise FileNotFoundError(
-            f"No se encontraron checkpoints en: {model_dir / 'checkpoints'}"
-        )
+        raise FileNotFoundError(f"No se encontraron checkpoints en: {model_dir / 'checkpoints'}")
     checkpoint_path = ckpt_files[0]
 
     hparams_path = model_dir / "hparams.yaml"
@@ -115,9 +113,7 @@ def generate_audio(model, hps, z_values, xmax, num_frames):
 
     with torch.no_grad():
         predicted_specgram = model.decoder(z) * xmax
-        predicted_specgram = torch.nan_to_num(
-            predicted_specgram, nan=0.0, posinf=xmax, neginf=0.0
-        )
+        predicted_specgram = torch.nan_to_num(predicted_specgram, nan=0.0, posinf=xmax, neginf=0.0)
         predicted_specgram = torch.clamp(predicted_specgram, min=0.0, max=xmax)
 
     phase_option = "griffinlim"
@@ -222,9 +218,7 @@ play_enabled = st.toggle("Play", value=st.session_state.get("play_enabled", Fals
 st.session_state["play_enabled"] = play_enabled
 
 try:
-    modelo, hps = get_interpolated_model(
-        inst_a, inst_b, beta_config, training_source, alpha
-    )
+    modelo, hps = get_interpolated_model(inst_a, inst_b, beta_config, training_source, alpha)
 
     audio = generate_audio(modelo, hps, z_values, xmax, NUM_FRAMES)
 

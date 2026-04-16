@@ -17,10 +17,7 @@ from experiments.interpolate import interpolar_vae  # noqa: E402
 
 def _load_instrument_model(instrument, source, beta):
     model_dir = (
-        MODEL_DIR
-        / f"inference_models/instruments_from_{source}"
-        / f"{instrument}_from_{source}_{beta}"
-        / "version_0"
+        MODEL_DIR / f"inference_models/instruments_from_{source}" / f"{instrument}_from_{source}_{beta}" / "version_0"
     )
     checkpoint_path = list((model_dir / "checkpoints").glob("*.ckpt"))[0]
     with open(model_dir / "hparams.yaml") as f:
@@ -61,9 +58,7 @@ def _discover_audio(instrument):
             files = sorted(folder.glob(ext))
             if files:
                 return files[0]
-    raise FileNotFoundError(
-        f"No se encontro audio para '{instrument}' en data_instruments/ ni data_instruments_small/"
-    )
+    raise FileNotFoundError(f"No se encontro audio para '{instrument}' en data_instruments/ ni data_instruments_small/")
 
 
 def _autogain(audio, target_peak=0.9):
@@ -108,12 +103,8 @@ def main():
     print(f"Cargando modelo {instrument_b}...")
     model_b, hps_b = _load_instrument_model(instrument_b, source, beta)
 
-    assert (
-        hps_a["encoder_layers"] == hps_b["encoder_layers"]
-    ), "Arquitecturas no coinciden"
-    assert (
-        hps_a["decoder_layers"] == hps_b["decoder_layers"]
-    ), "Arquitecturas no coinciden"
+    assert hps_a["encoder_layers"] == hps_b["encoder_layers"], "Arquitecturas no coinciden"
+    assert hps_a["decoder_layers"] == hps_b["decoder_layers"], "Arquitecturas no coinciden"
     assert hps_a["latent_dim"] == hps_b["latent_dim"], "Arquitecturas no coinciden"
 
     print(f"Codificando audio A ({instrument_a})...")
@@ -156,10 +147,7 @@ def main():
         )
 
     total_frames = n_a + n_transition + n_b
-    print(
-        f"Frames: {n_a} (A) + {n_transition} (transicion) + {n_b} (B) = {total_frames} "
-        f"({total_frames/fps:.1f}s)"
-    )
+    print(f"Frames: {n_a} (A) + {n_transition} (transicion) + {n_b} (B) = {total_frames} " f"({total_frames/fps:.1f}s)")
 
     # Phase 1: Pure A
     print("Fase 1: decodificando instrumento A...")
@@ -256,9 +244,7 @@ def main():
             return_audio=True,
         )
     except Exception as err:
-        print(
-            f"[WARN] {phase_reconstruction} fallo ({err}). Reintentando con phase='random'."
-        )
+        print(f"[WARN] {phase_reconstruction} fallo ({err}). Reintentando con phase='random'.")
         audio = predict_audio(
             predicted_specgram=specgram,
             hps=hps_a,
@@ -267,7 +253,7 @@ def main():
             return_audio=True,
         )
 
-    audio = np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
+    audio = np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore
     audio = _autogain(audio)
 
     wav_name = f"morphing_{instrument_a}_to_{instrument_b}.wav"

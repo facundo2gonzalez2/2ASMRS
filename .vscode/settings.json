@@ -1,0 +1,28 @@
+{
+  // ── Python interpreter ──
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+
+  // ── Disable linters (using standalone extension settings) ──
+  "pylint.enabled": false,
+  "flake8.enabled": false,
+
+  // ── Pyright as basic type checker ──
+  "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.extraPaths": ["${workspaceFolder}/model"],
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportMissingDocstrings": "none",
+    "reportUnusedVariable": "warning",
+    "reportUnusedImport": "warning"
+  },
+
+  // ── Black formatter on save ──
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.formatOnSave": true
+  },
+  "black-formatter.args": ["--config", "${workspaceFolder}/pyproject.toml"],
+
+  // ── Terminal: run from model/ ──
+  "python.terminal.executeInFileDir": false,
+  "terminal.integrated.cwd": "${workspaceFolder}/model"
+}
