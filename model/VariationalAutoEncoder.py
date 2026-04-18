@@ -140,18 +140,14 @@ class VariationalAutoEncoder(pl.LightningModule):
         self.db_min_norm = db_min_norm
         self.spec_in_db = spec_in_db
 
-    def split_data(
-        self, validation_size=0.05, val_consecutive_rows=None, random_seed=42
-    ):
+    def split_data(self, validation_size=0.05, val_consecutive_rows=None, random_seed=42):
         if val_consecutive_rows is not None:
-            self.X_train, self.X_val, self.y_train, self.y_val = (
-                train_val_split_no_overlap(
-                    self.X,
-                    self.y,
-                    val_consecutive_rows,
-                    validation_size,
-                    random_seed=random_seed,
-                )
+            self.X_train, self.X_val, self.y_train, self.y_val = train_val_split_no_overlap(
+                self.X,
+                self.y,
+                val_consecutive_rows,
+                validation_size,
+                random_seed=random_seed,
             )
         else:
             self.X_train, self.X_val, self.y_train, self.y_val = train_test_split(
@@ -193,9 +189,7 @@ class VariationalAutoEncoder(pl.LightningModule):
         self.beta = beta
 
         # DataLoaders
-        dataset = TensorDataset(
-            torch.tensor(self.X_train).float(), torch.tensor(self.X_train).float()
-        )
+        dataset = TensorDataset(torch.tensor(self.X_train).float(), torch.tensor(self.X_train).float())
         train_dataloader = DataLoader(
             dataset,
             batch_size=batch_size,
@@ -205,9 +199,7 @@ class VariationalAutoEncoder(pl.LightningModule):
             shuffle=True,
         )
 
-        dataset = TensorDataset(
-            torch.tensor(self.X_val).float(), torch.tensor(self.X_val).float()
-        )
+        dataset = TensorDataset(torch.tensor(self.X_val).float(), torch.tensor(self.X_val).float())
         val_dataloader = DataLoader(
             dataset,
             batch_size=batch_size,
@@ -219,9 +211,7 @@ class VariationalAutoEncoder(pl.LightningModule):
         logger = TensorBoardLogger(log_path, name=run_name)
         metric_tracker = MetricTracker()
 
-        early_stop_callback = EarlyStopping(
-            monitor="val_loss", min_delta=1e-6, patience=100, verbose=True, mode="min"
-        )
+        early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=1e-6, patience=100, verbose=True, mode="min")
 
         callbacks: list[Callback] = [metric_tracker]
         if use_early_stopping:
@@ -236,9 +226,7 @@ class VariationalAutoEncoder(pl.LightningModule):
             gradient_clip_val=1.0,
         )
 
-        trainer.fit(
-            self, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader
-        )
+        trainer.fit(self, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
         return trainer, metric_tracker
 
     def export_decoder(self):
