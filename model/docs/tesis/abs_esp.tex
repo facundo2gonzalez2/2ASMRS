@@ -4,8 +4,33 @@
 %\vspace{1cm}
 \chapter*{\runtitulo}
 
-\noindent La princesa Leia, líder del movimiento rebelde que desea reinstaurar la República en la galaxia en los tiempos ominosos del Imperio, es capturada por las malévolas Fuerzas Imperiales, capitaneadas por el implacable Darth Vader. El intrépido Luke Skywalker, ayudado por Han Solo, capitán de la nave espacial ``El Halcón Milenario'', y los androides, R2D2 y C3PO, serán los encargados de luchar contra el enemigo y rescatar a la princesa para volver a instaurar la justicia en el seno de la Galaxia (aprox. 200 palabras).
+\noindent El \emph{morphing tímbrico}~---~la generación de timbres intermedios
+entre instrumentos conocidos~--- es una herramienta de interés para la producción
+musical y el diseño sonoro, ya que permite expandir la paleta sonora más allá
+de los instrumentos acústicos existentes. Las técnicas usuales operan en el
+espacio latente de un único modelo generativo entrenado sobre múltiples
+instrumentos, lo que limita la fidelidad de cada timbre individual.
+
+En este trabajo se propone un enfoque alternativo: entrenar autoencoders
+variacionales ($\beta$-VAE) especializados por instrumento a partir de un
+modelo base común, y generar timbres híbridos mediante la interpolación
+de los pesos de esos modelos. 
+
+% La interpolación se realiza con SLERP sobre
+% los parámetros del modelo, con \emph{fallback} a LERP, operando así en el
+% espacio de parámetros en lugar del espacio latente y preservando la capacidad
+% reconstructiva de cada modelo especializado.
+
+El sistema se entrena sobre espectrogramas de magnitud obtenidos por STFT
+de cuatro instrumentos (piano, guitarra, voz y bajo) y se evalúa mediante
+Fréchet Audio Distance (FAD), similitud coseno sobre \emph{embeddings} MERT,
+análisis del espacio latente con UMAP y error de reconstrucción. 
+
+% Los modelos entrenados se integran en una aplicación interactiva en Streamlit que permite
+% explorar el espacio de timbres interpolados en tiempo real.
 
 \bigskip
 
-\noindent\textbf{Palabras claves:} Guerra, Rebelión, Wookie, Jedi, Fuerza, Imperio (no menos de 5).
+\noindent\textbf{Palabras claves:} morphing tímbrico, autoencoder variacional,
+$\beta$-VAE, interpolación de pesos, síntesis de audio, Fréchet Audio
+Distance.

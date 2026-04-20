@@ -11,13 +11,13 @@
 
 %%%% CARATULA
 
-\def\autor{Luke Skywalker}
-\def\tituloTesis{La Guerra de las Galaxias: \vspace{.2cm} \\ Rebelión e Imperio}
-\def\runtitulo{La Guerra de las Galaxias: Rebelión e Imperio}
-\def\runtitle{Star Wars: Rebellion and Empire}
-\def\director{Obi-Wan Kenobi}
-\def\codirector{Master Yoda}
-\def\lugar{Buenos Aires, 2011}
+\def\autor{Facundo González Barnator}
+\def\tituloTesis{Morphing Tímbrico Mediante Interpolación de Pesos de Modelos VAE}
+\def\runtitulo{Morphing Tímbrico Mediante Interpolación de Pesos de Modelos VAE}
+\def\runtitle{Morphing Tímbrico Mediante Interpolación de Pesos de Modelos VAE}
+\def\director{Pablo Riera}
+\def\codirector{-}
+\def\lugar{Buenos Aires, 2026}
 \input{caratula}
 
 %%%% ABSTRACTS, AGRADECIMIENTOS Y DEDICATORIA
@@ -25,14 +25,14 @@
 \pagestyle{empty}
 \input{abs_esp.tex}
 
-\cleardoublepage
-\input{abs_en.tex} % OPCIONAL: comentar si no se quiere
+% \cleardoublepage
+% \input{abs_en.tex} % OPCIONAL: comentar si no se quiere
 
-\cleardoublepage
-\input{agradecimientos.tex} % OPCIONAL: comentar si no se quiere
+% \cleardoublepage
+% \input{agradecimientos.tex} % OPCIONAL: comentar si no se quiere
 
-\cleardoublepage
-\input{dedicatoria.tex}  % OPCIONAL: comentar si no se quiere
+% \cleardoublepage
+% \input{dedicatoria.tex}  % OPCIONAL: comentar si no se quiere
 
 \cleardoublepage
 \tableofcontents
@@ -42,44 +42,130 @@
 
 %%%% ACA VA EL CONTENIDO DE LA TESIS
 
-\chapter{La guerra de las galaxias}
-\section{Infancia y juventud}
-{\begin{small}%
-\begin{flushright}%
-\it
-There's nothing for me now.
-I want to learn the ways of\\ the Force and become a Jedi like my father. \\
---Luke Skywalker
-\end{flushright}%
-\end{small}%
-\vspace{.5cm}}
+\chapter{Introducción}
+\label{cap:introduccion}
 
-\section{Rescate de la princesa}
-{\begin{small}%
-\begin{flushright}%
-\it
-Here's where the fun begins!\\
---Han Solo
-\end{flushright}%
-\end{small}%
-\vspace{.5cm}}
+\section{Motivación}
+% El timbre como atributo perceptual; interés del morphing tímbrico en
+% producción musical y diseño sonoro.
 
-\section{Sacrificio y victoria}
-{\begin{small}%
-\begin{flushright}%
-\it
-This will be a day long remembered.\\ It has seen the end of Kenobi.\\ It will soon see the end of the Rebellion.\\
---Darth Vader
-\end{flushright}%
-\end{small}%
-\vspace{.5cm}}
+El timbre es el atributo perceptual que permite distinguir dos sonidos de
+igual altura y volumen producidos por fuentes distintas. La generación de
+timbres intermedios entre instrumentos conocidos, comúnmente denominada
+\emph{morphing tímbrico}, resulta de particular interés tanto en la producción
+musical como en el diseño sonoro.
 
-%% ...
-\chapter{El imperio contraataca}
-\chapter{El regreso del Jedi}
+\section{Antecedentes}
+% Recorrido por los trabajos previos que sustentan la propuesta.
+
+Los autoencoders variacionales (VAE) fueron introducidos por Kingma y
+Welling~\cite{kingma2013auto} como un marco generativo que aprende
+representaciones latentes continuas mediante una distribución probabilística
+regularizada por la divergencia de Kullback-Leibler. Higgins et
+al.~\cite{higgins2017beta} propusieron el $\beta$-VAE, que pondera el término
+KL con un hiperparámetro $\beta$ para controlar el balance entre calidad de
+reconstrucción y regularización del espacio latente.
+
+En el modelado de sonido musical, Roche et
+al.~\cite{roche2019autoencodersmusicsoundmodeling} realizaron un estudio
+comparativo de distintas arquitecturas de autoencoders aplicadas a
+espectrogramas, mostrando que los modelos variacionales logran un buen
+compromiso entre reconstrucción y regularización del espacio latente.
+Caillon y Esling~\cite{caillon2021rave} demostraron con RAVE que los VAE
+pueden sintetizar audio de alta calidad en tiempo real. Riera, Eguía y
+Zabaljáuregui~\cite{riera2017timbre} exploraron la construcción de espacios
+de timbre mediante autoencoders dispersos, mostrando que las representaciones
+aprendidas capturan relaciones perceptuales entre timbres instrumentales.
+
+Para la evaluación de audio generado se utiliza la Fréchet Audio Distance
+(FAD)~\cite{gui2024adaptingfrechetaudiodistance}, que cuantifica la distancia
+entre distribuciones de audio generado y de referencia a partir de
+\emph{embeddings} neuronales.
+
+\section{Propuesta}
+% Entrenar VAEs por instrumento e interpolar sus pesos (SLERP/LERP) para
+% generar timbres híbridos, operando en el espacio de parámetros.
+
+\section{Objetivos}
+% General: sistema de morphing tímbrico basado en β-VAE por interpolación
+% de pesos. Específicos: entrenamiento en dos etapas, SLERP/LERP, métricas
+% (FAD, coseno, MSE), análisis del espacio latente (UMAP), app interactiva.
+
+\section{Organización del trabajo}
+% Capítulo 2: metodología; Capítulo 3: experimentación; Capítulo 4: conclusión.
+
+
+\chapter{Metodología}
+\label{cap:metodologia}
+
+\section{Datos y preprocesamiento}
+% Datasets por instrumento: GuitarSet~\cite{xi2019guitarset},
+% VocalSet~\cite{wilkins2018vocalset}, FiloBass~\cite{riley2023filobass},
+% piano libre de derechos. STFT 2048/512 @ 22050 Hz → dB → clip -60 dB → norm [0,1].
+
+\section{Arquitectura del modelo VAE}
+% Encoder lineal + BatchNorm + ELU, dos cabezas (μ, logσ²), truco de
+% reparametrización. Decoder espejo. Loss: MSE + β·KL.
+
+\section{Estrategia de entrenamiento}
+% Etapa 1: modelo base sobre todos los instrumentos.
+% Etapa 2: fine-tuning por instrumento desde el checkpoint base.
+% Variantes β=0 y β=0.001.
+
+\section{Interpolación de pesos}
+% SLERP sobre vectores de parámetros aplanados capa a capa; fallback a LERP
+% cuando los vectores son cuasi-paralelos. Parámetro α ∈ [0,1].
+
+\section{Reconstrucción de audio}
+% Decoder → espectrograma → ISTFT con Griffin-Lim / PGHI / fase aleatoria.
+
+\section{Métricas de evaluación}
+% FAD con embeddings MERT-v1-95M; similitud coseno; MSE de reconstrucción;
+% UMAP del espacio latente; U de Wilcoxon-Mann-Whitney multidimensional.
+
+\section{Aplicación interactiva}
+% Streamlit: selección de instrumentos, slider α, sliders Z, síntesis en
+% tiempo real vía decoder del modelo interpolado.
+
+
+\chapter{Experimentación y resultados}
+\label{cap:experimentacion}
+
+\section{Barrido de dimensión del espacio latente}
+% Dims (2,3,4,6,8) × instrumento × 5 repeticiones, VAE vs β-VAE.
+
+\section{Variación de $\beta$}
+% β ∈ {0, 1e-5, 1e-4, 1e-3, 1e-2} sobre el modelo base. Evolución del MSE
+% y KL durante el entrenamiento.
+
+\section{Análisis del espacio latente con UMAP}
+% Proyección 2D del espacio latente del modelo base; clustering por
+% instrumento; U de Wilcoxon-Mann-Whitney multidimensional.
+
+\section{Interpolación entre pares de instrumentos}
+% Similitud de reconstrucción vs α para los 6 pares; comparación
+% from-checkpoint vs from-scratch y β vs no-β.
+
+\section{Audio morphing}
+% Transiciones audio-a-audio encodeando muestras reales, blending
+% secuencial de Z e interpolación de pesos.
+
+
+\chapter{Conclusiones}
+\label{cap:conclusiones}
+
+\section{Resumen de resultados}
+
+\section{Contribuciones}
+
+\section{Limitaciones}
+
+\section{Trabajo futuro}
+
 
 %%%% BIBLIOGRAFIA
 \backmatter
-%\bibliography{tesis}
+\bibliographystyle{acm}
+\bibliography{bibliografia}
 
 \end{document}
