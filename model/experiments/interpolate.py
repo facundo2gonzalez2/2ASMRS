@@ -21,9 +21,9 @@ MODEL_DIR = Path(__file__).resolve().parents[1]
 if str(MODEL_DIR) not in sys.path:
     sys.path.insert(0, str(MODEL_DIR))
 
-from VariationalAutoEncoder import VariationalAutoEncoder # noqa: E402
-from audio_utils import get_spectrograms_from_audios, save_audio # noqa: E402
-from scripts.vae_predict import predict_audio # noqa: E402
+from VariationalAutoEncoder import VariationalAutoEncoder  # noqa: E402
+from audio_utils import get_spectrograms_from_audios, save_audio  # noqa: E402
+from scripts.vae_predict import predict_audio  # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -57,6 +57,33 @@ REGIMES = {
 }
 
 
+REGIME_DISPLAY_LABELS = {
+    "checkpoint_no_beta": "Checkpoint, β=0",
+    "checkpoint_beta": "Checkpoint, β=0.001",
+    "scratch_no_beta": "Scratch, β=0",
+    "scratch_beta": "Scratch, β=0.001",
+}
+
+
+FAMILY_STYLES = [
+    ("source", "tab:blue"),
+    ("target", "tab:orange"),
+    ("witness", "tab:green"),
+]
+
+
+METRIC_YLABELS = {
+    "cosine": "Similitud (coseno)",
+    "fad": "Similitud (FAD)",
+}
+
+
+METRIC_DISPLAY_NAMES = {
+    "cosine": "coseno",
+    "fad": "FAD",
+}
+
+
 @dataclass
 class ModelArtifact:
     instrument: str
@@ -64,6 +91,7 @@ class ModelArtifact:
     model_dir: Path
     checkpoint_path: Path
     hparams: dict[str, Any]
+
 
 def interpolar_vae(
     model_a: VariationalAutoEncoder,
@@ -117,9 +145,7 @@ def interpolar_vae(
         return interpolated.reshape_as(tensor_a).to(dtype=original_dtype)
 
     if interpolation_mode not in {"linear", "slerp"}:
-        raise ValueError(
-            f"interpolation_mode inválido: {interpolation_mode}. Usa 'linear' o 'slerp'."
-        )
+        raise ValueError(f"interpolation_mode inválido: {interpolation_mode}. Usa 'linear' o 'slerp'.")
 
     # 3. Iterar sobre todos los parámetros
     for key in theta_a:
@@ -136,9 +162,7 @@ def interpolar_vae(
                     theta_interp[key] = (1.0 - alpha) * tensor_a + alpha * tensor_b
         else:
             # Esto no debería pasar si las arquitecturas son idénticas
-            raise KeyError(
-                f"Clave '{key}' no encontrada en model_b. Las arquitecturas no coinciden."
-            )
+            raise KeyError(f"Clave '{key}' no encontrada en model_b. Las arquitecturas no coinciden.")
 
     # 5. Crear una nueva instancia del modelo VAE
     #    ¡Importante! No pasamos 'checkpoint_path' aquí.
@@ -280,9 +304,7 @@ def validate_architecture(artifact_a: ModelArtifact, artifact_b: ModelArtifact):
     ]
     for name, left, right in checks:
         if left != right:
-            raise ValueError(
-                f"Arquitectura incompatible en {name}: {artifact_a.model_dir} vs {artifact_b.model_dir}"
-            )
+            raise ValueError(f"Arquitectura incompatible en {name}: {artifact_a.model_dir} vs {artifact_b.model_dir}")
 
 
 def collect_audio_files(data_root: Path, instrument: str) -> list[Path]:
@@ -309,13 +331,9 @@ def sample_indices(total_items: int, n_samples: int, rng: random.Random) -> list
     return sorted(rng.sample(indices, k=n_samples))
 
 
-def build_pairs(
-    instruments: list[str], anchor_instrument: str | None
-) -> list[tuple[str, str]]:
+def build_pairs(instruments: list[str], anchor_instrument: str | None) -> list[tuple[str, str]]:
     if anchor_instrument and anchor_instrument not in instruments:
-        raise ValueError(
-            f"El instrumento ancla '{anchor_instrument}' no está en la lista de instrumentos."
-        )
+        raise ValueError(f"El instrumento ancla '{anchor_instrument}' no está en la lista de instrumentos.")
 
     if anchor_instrument:
         pairs = []
@@ -395,9 +413,7 @@ def evaluate_reconstruction(
 
     cosine_source = cosine_similarity_from_embeddings(recon_embedding, source_embedding)
     cosine_target = cosine_similarity_from_embeddings(recon_embedding, target_embedding)
-    cosine_witness = cosine_similarity_from_embeddings(
-        recon_embedding, witness_embedding
-    )
+    cosine_witness = cosine_similarity_from_embeddings(recon_embedding, witness_embedding)
 
     metrics = {
         "cosine_source": cosine_source,
@@ -411,15 +427,9 @@ def evaluate_reconstruction(
         target_matrix = cache.get_matrix_embedding(target_reference)
         witness_matrix = cache.get_matrix_embedding(witness_reference)
 
-        metrics["fad_source"] = float(
-            get_audio_similarity_fad(recon_matrix, source_matrix)
-        )
-        metrics["fad_target"] = float(
-            get_audio_similarity_fad(recon_matrix, target_matrix)
-        )
-        metrics["fad_witness"] = float(
-            get_audio_similarity_fad(recon_matrix, witness_matrix)
-        )
+        metrics["fad_source"] = float(get_audio_similarity_fad(recon_matrix, source_matrix))
+        metrics["fad_target"] = float(get_audio_similarity_fad(recon_matrix, target_matrix))
+        metrics["fad_witness"] = float(get_audio_similarity_fad(recon_matrix, witness_matrix))
 
     return metrics
 
@@ -477,9 +487,7 @@ def generate_latent_seed(
         }
 
     if sampling_mode != "encoded":
-        raise ValueError(
-            f"random_latent_sampling_mode inválido: {sampling_mode}. Usa 'gaussian' o 'encoded'."
-        )
+        raise ValueError(f"random_latent_sampling_mode inválido: {sampling_mode}. Usa 'gaussian' o 'encoded'.")
 
     available_count = min(
         len(source_ground_truth_files),
@@ -487,21 +495,15 @@ def generate_latent_seed(
         len(witness_ground_truth_files),
     )
     if available_count <= 0:
-        raise ValueError(
-            "No hay suficientes audios ground truth para construir un latente desde audios."
-        )
+        raise ValueError("No hay suficientes audios ground truth para construir un latente desde audios.")
 
     reference_index = rng.randrange(available_count)
     source_reference = source_ground_truth_files[reference_index]
     target_reference = target_ground_truth_files[reference_index]
     witness_reference = witness_ground_truth_files[reference_index]
 
-    source_latent = encode_audio_to_latent(
-        source_model, source_hparams, source_reference
-    )
-    target_latent = encode_audio_to_latent(
-        target_model, target_hparams, target_reference
-    )
+    source_latent = encode_audio_to_latent(source_model, source_hparams, source_reference)
+    target_latent = encode_audio_to_latent(target_model, target_hparams, target_reference)
     witness_latent = encode_audio_to_latent(
         witness_model,
         witness_hparams,
@@ -617,10 +619,6 @@ def read_raw_results(input_csv: Path) -> list[dict[str, Any]]:
     return rows
 
 
-def plot_metric_family(axis, alphas: list[float], values: list[float], label: str):
-    axis.plot(alphas, values, marker="o", label=label)
-
-
 def plot_sample_metric_family(
     axis,
     regime_rows: list[dict[str, Any]],
@@ -672,9 +670,7 @@ def run_interpolation_experiment(args):
 
     instruments = [inst.strip() for inst in args.instruments.split(",") if inst.strip()]
     pairs = build_pairs(instruments, args.anchor_instrument)
-    selected_regimes = [
-        name.strip() for name in args.regimes.split(",") if name.strip()
-    ]
+    selected_regimes = [name.strip() for name in args.regimes.split(",") if name.strip()]
     alphas = parse_alphas(args.alphas)
 
     if not selected_regimes:
@@ -687,9 +683,7 @@ def run_interpolation_experiment(args):
 
     for regime_name in selected_regimes:
         if regime_name not in REGIMES:
-            raise ValueError(
-                f"Régimen desconocido '{regime_name}'. Opciones: {list(REGIMES.keys())}"
-            )
+            raise ValueError(f"Régimen desconocido '{regime_name}'. Opciones: {list(REGIMES.keys())}")
         regime = REGIMES[regime_name]
 
         for source_instrument, target_instrument in pairs:
@@ -709,12 +703,8 @@ def run_interpolation_experiment(args):
                 )
                 continue
 
-            source_artifact = resolve_model_artifact(
-                project_root, source_instrument, regime
-            )
-            target_artifact = resolve_model_artifact(
-                project_root, target_instrument, regime
-            )
+            source_artifact = resolve_model_artifact(project_root, source_instrument, regime)
+            target_artifact = resolve_model_artifact(project_root, target_instrument, regime)
 
             if source_artifact is None or target_artifact is None:
                 skipped_cases.append(
@@ -737,15 +727,9 @@ def run_interpolation_experiment(args):
             model_target = build_model(target_artifact)
 
             source_input_files = collect_audio_files(data_root, source_instrument)
-            source_ground_truth_files = collect_audio_files(
-                data_ground_truth_root, source_instrument
-            )
-            target_ground_truth_files = collect_audio_files(
-                data_ground_truth_root, target_instrument
-            )
-            witness_ground_truth_files = collect_audio_files(
-                data_ground_truth_root, witness_instrument
-            )
+            source_ground_truth_files = collect_audio_files(data_ground_truth_root, source_instrument)
+            target_ground_truth_files = collect_audio_files(data_ground_truth_root, target_instrument)
+            witness_ground_truth_files = collect_audio_files(data_ground_truth_root, witness_instrument)
 
             available_count = min(
                 len(source_input_files),
@@ -753,11 +737,7 @@ def run_interpolation_experiment(args):
                 len(target_ground_truth_files),
                 len(witness_ground_truth_files),
             )
-            pair_output_dir = (
-                output_root
-                / regime_name
-                / f"{source_instrument}_to_{target_instrument}"
-            )
+            pair_output_dir = output_root / regime_name / f"{source_instrument}_to_{target_instrument}"
             pair_output_dir.mkdir(parents=True, exist_ok=True)
 
             selected_indices = sample_indices(
@@ -794,9 +774,7 @@ def run_interpolation_experiment(args):
                         witness_ref = witness_ground_truth_files[file_index]
 
                         reconstructed_path = (
-                            pair_output_dir
-                            / f"alpha_{alpha:.2f}"
-                            / f"sample_{file_index:02d}_{source_audio.stem}.mp3"
+                            pair_output_dir / f"alpha_{alpha:.2f}" / f"sample_{file_index:02d}_{source_audio.stem}.mp3"
                         )
 
                         reconstruct_audio(
@@ -863,9 +841,7 @@ def run_interpolation_experiment(args):
             validate_architecture(target_artifact, witness_artifact)
 
             model_witness = build_model(witness_artifact)
-            latent_output_dir = (
-                pair_output_dir / f"random_latent_{args.random_latent_sampling_mode}"
-            )
+            latent_output_dir = pair_output_dir / f"random_latent_{args.random_latent_sampling_mode}"
             latent_trials: list[dict[str, Any]] = []
 
             for latent_sample_idx in range(args.random_latent_samples):
@@ -898,9 +874,7 @@ def run_interpolation_experiment(args):
                     latent_trials = []
                     break
 
-                sample_output_dir = (
-                    latent_output_dir / f"sample_{latent_sample_idx:02d}"
-                )
+                sample_output_dir = latent_output_dir / f"sample_{latent_sample_idx:02d}"
                 source_reference_path = sample_output_dir / "source_reference.wav"
                 target_reference_path = sample_output_dir / "target_reference.wav"
                 witness_reference_path = sample_output_dir / "witness_reference.wav"
@@ -953,9 +927,7 @@ def run_interpolation_experiment(args):
 
                 for latent_trial in latent_trials:
                     reconstructed_path = (
-                        latent_output_dir
-                        / f"sample_{latent_trial['latent_sample_idx']:02d}"
-                        / f"alpha_{alpha:.2f}.wav"
+                        latent_output_dir / f"sample_{latent_trial['latent_sample_idx']:02d}" / f"alpha_{alpha:.2f}.wav"
                     )
 
                     decode_latent_to_audio(
@@ -988,24 +960,14 @@ def run_interpolation_experiment(args):
                             "sample_idx": latent_trial["latent_sample_idx"],
                             "paired_audio_idx": latent_trial["latent_sample_idx"],
                             "source_audio": "",
-                            "source_ground_truth": str(
-                                latent_trial["source_reference"]
-                            ),
+                            "source_ground_truth": str(latent_trial["source_reference"]),
                             "target_reference": str(latent_trial["target_reference"]),
                             "witness_reference": str(latent_trial["witness_reference"]),
                             "reconstructed_audio": str(reconstructed_path),
-                            "latent_seed_reference_source": latent_trial[
-                                "latent_seed_reference_source"
-                            ],
-                            "latent_seed_reference_target": latent_trial[
-                                "latent_seed_reference_target"
-                            ],
-                            "latent_seed_reference_witness": latent_trial[
-                                "latent_seed_reference_witness"
-                            ],
-                            "latent_seed_reference_index": latent_trial[
-                                "latent_seed_reference_index"
-                            ],
+                            "latent_seed_reference_source": latent_trial["latent_seed_reference_source"],
+                            "latent_seed_reference_target": latent_trial["latent_seed_reference_target"],
+                            "latent_seed_reference_witness": latent_trial["latent_seed_reference_witness"],
+                            "latent_seed_reference_index": latent_trial["latent_seed_reference_index"],
                             **metrics,
                         }
                     )
@@ -1164,8 +1126,7 @@ def generate_plots(
             for row in summary_rows
             if get_row_experiment_type(row) == experiment_type
             and get_row_latent_sampling_mode(row) == latent_sampling_mode
-            if row["source_instrument"] == source_instrument
-            and row["target_instrument"] == target_instrument
+            if row["source_instrument"] == source_instrument and row["target_instrument"] == target_instrument
         ]
         regimes = sorted({row["regime"] for row in pair_rows})
         title_suffix, file_suffix = get_experiment_plot_metadata(
@@ -1189,26 +1150,42 @@ def generate_plots(
                 regime_rows = [row for row in pair_rows if row["regime"] == regime]
                 regime_rows.sort(key=lambda x: x["alpha"])
 
-                alphas = [row["alpha"] for row in regime_rows]
-                source_values = [
-                    row.get(f"{metric}_source_mean", float("nan"))
-                    for row in regime_rows
-                ]
-                target_values = [
-                    row.get(f"{metric}_target_mean", float("nan"))
-                    for row in regime_rows
-                ]
-                witness_values = [
-                    row.get(f"{metric}_witness_mean", float("nan"))
-                    for row in regime_rows
-                ]
+                alphas = np.asarray([row["alpha"] for row in regime_rows], dtype=float)
+                witness_instrument = regime_rows[0]["witness_instrument"] if regime_rows else ""
+                instrument_labels = {
+                    "source": source_instrument,
+                    "target": target_instrument,
+                    "witness": witness_instrument,
+                }
 
-                plot_metric_family(axis, alphas, source_values, "source")
-                plot_metric_family(axis, alphas, target_values, "target")
-                plot_metric_family(axis, alphas, witness_values, "witness")
-                axis.set_title(regime)
-                axis.set_xlabel("alpha")
-                axis.set_ylabel(metric)
+                for family, color in FAMILY_STYLES:
+                    means = np.asarray(
+                        [row.get(f"{metric}_{family}_mean", float("nan")) for row in regime_rows],
+                        dtype=float,
+                    )
+                    stds = np.asarray(
+                        [row.get(f"{metric}_{family}_std", float("nan")) for row in regime_rows],
+                        dtype=float,
+                    )
+                    axis.plot(
+                        alphas,
+                        means,
+                        color=color,
+                        marker="o",
+                        label=instrument_labels[family],
+                    )
+                    axis.fill_between(
+                        alphas,
+                        means - stds,
+                        means + stds,
+                        color=color,
+                        alpha=0.2,
+                        linewidth=0,
+                    )
+
+                axis.set_title(REGIME_DISPLAY_LABELS.get(regime, regime))
+                axis.set_xlabel("α")
+                axis.set_ylabel(METRIC_YLABELS.get(metric, metric))
                 axis.grid(True, alpha=0.3)
                 axis.legend()
 
@@ -1216,17 +1193,14 @@ def generate_plots(
                 axis = axes[idx // ncols][idx % ncols]
                 axis.axis("off")
 
+            metric_display = METRIC_DISPLAY_NAMES.get(metric, metric)
             fig.suptitle(
-                f"{metric.upper()} | {source_instrument} -> {target_instrument}{title_suffix}",
+                f"Similitud ({metric_display}) | {source_instrument} → {target_instrument}",
                 fontsize=13,
             )
             fig.tight_layout()
 
-            plot_path = (
-                output_root
-                / "plots"
-                / f"{metric}{file_suffix}_{source_instrument}_to_{target_instrument}.png"
-            )
+            plot_path = output_root / "plots" / f"{metric}{file_suffix}_{source_instrument}_to_{target_instrument}.png"
             plot_path.parent.mkdir(parents=True, exist_ok=True)
             fig.savefig(plot_path)
             plt.close(fig)
@@ -1256,11 +1230,6 @@ def generate_sample_plots(
             for row in rows
         }
     )
-    line_styles = [
-        ("source", "tab:blue"),
-        ("target", "tab:orange"),
-        ("witness", "tab:green"),
-    ]
 
     for (
         experiment_type,
@@ -1273,8 +1242,7 @@ def generate_sample_plots(
             for row in rows
             if get_row_experiment_type(row) == experiment_type
             and get_row_latent_sampling_mode(row) == latent_sampling_mode
-            if row["source_instrument"] == source_instrument
-            and row["target_instrument"] == target_instrument
+            if row["source_instrument"] == source_instrument and row["target_instrument"] == target_instrument
         ]
         regimes = sorted({row["regime"] for row in pair_rows})
         title_suffix, file_suffix = get_experiment_plot_metadata(
@@ -1296,19 +1264,25 @@ def generate_sample_plots(
             for idx, regime in enumerate(regimes):
                 axis = axes[idx // ncols][idx % ncols]
                 regime_rows = [row for row in pair_rows if row["regime"] == regime]
+                witness_instrument = regime_rows[0]["witness_instrument"] if regime_rows else ""
+                instrument_labels = {
+                    "source": source_instrument,
+                    "target": target_instrument,
+                    "witness": witness_instrument,
+                }
 
-                for family_name, color in line_styles:
+                for family_name, color in FAMILY_STYLES:
                     plot_sample_metric_family(
                         axis,
                         regime_rows,
                         f"{metric}_{family_name}",
                         color,
-                        family_name,
+                        instrument_labels[family_name],
                     )
 
-                axis.set_title(regime)
-                axis.set_xlabel("alpha")
-                axis.set_ylabel(metric)
+                axis.set_title(REGIME_DISPLAY_LABELS.get(regime, regime))
+                axis.set_xlabel("α")
+                axis.set_ylabel(METRIC_YLABELS.get(metric, metric))
                 axis.grid(True, alpha=0.3)
                 axis.legend()
 
@@ -1316,16 +1290,15 @@ def generate_sample_plots(
                 axis = axes[idx // ncols][idx % ncols]
                 axis.axis("off")
 
+            metric_display = METRIC_DISPLAY_NAMES.get(metric, metric)
             fig.suptitle(
-                f"{metric.upper()} por muestra | {source_instrument} -> {target_instrument}{title_suffix}",
+                f"Similitud ({metric_display}) por muestra | {source_instrument} → {target_instrument}",
                 fontsize=13,
             )
             fig.tight_layout()
 
             plot_path = (
-                output_root
-                / "plots"
-                / f"{metric}_samples{file_suffix}_{source_instrument}_to_{target_instrument}.png"
+                output_root / "plots" / f"{metric}_samples{file_suffix}_{source_instrument}_to_{target_instrument}.png"
             )
             plot_path.parent.mkdir(parents=True, exist_ok=True)
             fig.savefig(plot_path)
@@ -1333,11 +1306,12 @@ def generate_sample_plots(
 
 
 def main():
+    default_output_dir = "interpolation_random_25_samples_ckpt_vs_scratch_gaussian_latest2"
     config = {
         "project_root": ".",
         "data_root": "data_test",
         "data_ground_truth": "data_test_gt",
-        "output_dir": os.environ.get("OUTPUT_DIR", "interpolation_results"),
+        "output_dir": os.environ.get("OUTPUT_DIR", default_output_dir),
         "instruments": "piano,guitar,voice",
         "anchor_instrument": "piano",
         "regimes": "checkpoint_beta,checkpoint_no_beta,scratch_beta,scratch_no_beta",
@@ -1345,17 +1319,14 @@ def main():
         "samples_per_instrument": 0,
         "seed": 42,
         "include_fad": True,
-        "plot_only": False,
+        "plot_only": True,
         "random_latent_samples": 25,
         "random_latent_sampling_mode": "gaussian",
         "random_latent_num_frames": 48,
         "random_latent_phase_option": "random",
     }
 
-    if (
-        config["anchor_instrument"] is not None
-        and str(config["anchor_instrument"]).strip() == ""
-    ):
+    if config["anchor_instrument"] is not None and str(config["anchor_instrument"]).strip() == "":
         config["anchor_instrument"] = None
 
     args = SimpleNamespace(**config)
@@ -1364,9 +1335,10 @@ def main():
 
 
 if __name__ == "__main__":
-    from audio_comparator import ( # noqa: E402
+    from audio_comparator import (  # noqa: E402
         get_audio_similarity_fad,
         get_embedding,
         get_matrix_embedding,
     )
+
     main()
