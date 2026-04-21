@@ -47,6 +47,7 @@ done
 if [ $SKIP_SLOW -eq 0 ]; then
     REQUIRED_SLOW=(
         "inference_models/base_model/base_model_beta_0.001/version_0"
+        "inference_models/base_model/base_model_no_beta/version_0"
         "experiments_models/experiment_latent_dim_piano/beta_vae_latentdim_8/version_0"
         "experiments_models/experiment_latent_dim_piano/vae_latentdim_3/version_0"
     )
@@ -108,9 +109,18 @@ else
         --output_img_path "$OUTPUT_DIR/03_umap/comparison_trajectory_piano.png"
 
     echo ""
-    echo "═══ [3/6] UMAP: clustering de instrumentos en base model ═══"
+    echo "═══ [3/6] UMAP: clustering de instrumentos en base model (β=0) ═══"
     python experiments/umap_experiment.py run_model_base_comparison \
-        --output_img_path "$OUTPUT_DIR/03_umap/base_model_instruments_umap.png"
+        --base_model_path inference_models/base_model/base_model_no_beta/version_0 \
+        --output_img_path "$OUTPUT_DIR/03_umap/base_model_no_beta_instruments_umap.png" \
+        --run_label "Base Model (β=0)"
+
+    echo ""
+    echo "═══ [3/6] UMAP: clustering de instrumentos en base model (β=0.001) ═══"
+    python experiments/umap_experiment.py run_model_base_comparison \
+        --base_model_path inference_models/base_model/base_model_beta_0.001/version_0 \
+        --output_img_path "$OUTPUT_DIR/03_umap/base_model_beta_instruments_umap.png" \
+        --run_label "Base Model (β=0.001)"
 
     # 4) Interpolación: similitud de reconstrucción vs alfa
     #    (experiments.md 4a, 4b)

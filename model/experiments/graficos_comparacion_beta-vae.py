@@ -33,12 +33,8 @@ fig_kl, ax_kl = plt.subplots(1, 2, figsize=(16, 6))
 fig_kl_zoom, ax_kl_zoom = plt.subplots(1, 2, figsize=(16, 6))
 
 fig_recon.suptitle("Evolución del Error de Reconstrucción (Train vs Val)", fontsize=16)
-fig_kl.suptitle(
-    "Evolución de la Divergencia KL (Train vs Val) - Escala Amplia", fontsize=16
-)
-fig_kl_zoom.suptitle(
-    "Evolución de la Divergencia KL (Train vs Val) - Zoom In", fontsize=16
-)
+fig_kl.suptitle("Evolución de la Divergencia KL (Train vs Val) - Escala Amplia", fontsize=16)
+fig_kl_zoom.suptitle("Evolución de la Divergencia KL (Train vs Val) - Zoom In", fontsize=16)
 
 ax_recon[0].set_title("Train Reconstruction Error")
 ax_recon[0].set_xlabel("Paso / Etapa")
@@ -77,9 +73,7 @@ for dir_name, beta in beta_dirs.items():
         train_recon_q = df["train_recon"].dropna()
         # Ignoramos el paso 0 que suele tener un error gigante (outlier inicial)
         train_recon_q = train_recon_q.iloc[1:]
-        ax_recon[0].plot(
-            train_recon_q.index, train_recon_q.values, label=f"Beta {beta}"
-        )
+        ax_recon[0].plot(train_recon_q.index, train_recon_q.values, label=f"Beta {beta}")
 
     # Val Recon
     if "val_recon" in df.columns:
@@ -126,14 +120,14 @@ for ax in ax_kl:
     ax.grid(True, alpha=0.3)
     ax.set_ylim(bottom=0)
     current_top = ax.get_ylim()[1]
-    ax.set_ylim(top=min(0.2, current_top))
+    ax.set_ylim(top=min(20, current_top))
 
 for ax in ax_kl_zoom:
     ax.legend()
     ax.grid(True, alpha=0.3)
     ax.set_ylim(bottom=0)
     current_top = ax.get_ylim()[1]
-    ax.set_ylim(top=min(0.002, current_top))
+    ax.set_ylim(top=min(5.5, current_top))
 
 fig_recon.tight_layout()
 fig_kl.tight_layout()
