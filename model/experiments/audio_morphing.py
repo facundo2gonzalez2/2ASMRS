@@ -75,16 +75,16 @@ def main():
     # ── Config ──────────────────────────────────────────
     instrument_a = "piano"
     instrument_b = "guitar"
-    audio_a = None  # "data_instruments/voice/f1_arpeggios_c_slow_forte_a.wav"
-    audio_b = "data_instruments/guitar/05_SS3-84-Bb_solo_hex.wav"
-    duration_a = 2.5  # seconds
-    duration_transition = 10
-    duration_b = 2.5
+    audio_a = "data_audio_morphing/piano_new2_trimmed.wav"
+    audio_b = "data_audio_morphing/guitar_new2_trimmed.wav"
+    duration_a = 2  # seconds
+    duration_transition = 5
+    duration_b = 2
     source = "checkpoint"  # "checkpoint" or "scratch"
     beta = "beta_0.001"  # "beta_0.001" or "no_beta"
     interpolation_mode = "slerp"  # "linear" or "slerp"
-    phase_reconstruction = "griffinlim"  # "griffinlim", "pghi", or "random"
-    output_dir = f"audio_morphing_output_large_{phase_reconstruction}"
+    phase_reconstruction = "pghi"  # "griffinlim", "pghi", or "random"
+    output_dir = f"audio_morphing_output_test_{phase_reconstruction}"
     # ────────────────────────────────────────────────────
 
     if audio_a is None:

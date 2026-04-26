@@ -14,6 +14,7 @@ data_test/
 data_test_gt/
 data_instruments.zip
 data_instruments_small.zip
+data_audio_morphing/
 
 # Models for experiments
 experiments_models/
@@ -40,3 +41,4 @@ AudiosInterpolacion-Nuevos/
 AudiosInterpolacion-Nuevos-Linear/
 test.wav
 audio_morphing_output*/
+imgs/fad_similarity/
