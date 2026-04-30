@@ -136,9 +136,9 @@ entre distribuciones de audio generado y de referencia a partir de
 
 \section{Arquitectura del modelo y Experimentación $\beta$-VAE}
 
-Uno de los aspectos claves a definir en la arquitectura de los modelos es el tamaño del espacio latente. Como vimos antes, esperamos que a mayor tamaño del espacio latente mejores resultados de error de reconstrucción tendremos; sin embargo para el uso práctico de estos modelos lo ideal es mantener un tamaño acotado para poder generar representaciones fáciles de manipular. Si pensamos en una implementación de perillas para poder modificar el espacio latente, tener 4 perillas suena coherente para usar, pero tener 32 perillas puede resultar poco intuitivo.
+Uno de los aspectos clave a definir en la arquitectura de los modelos es el tamaño del espacio latente. Como cabe esperar, a mayor dimensión del espacio latente menor es el error de reconstrucción; sin embargo, para el uso práctico de estos modelos resulta deseable mantener un tamaño acotado, de modo que las representaciones sean fáciles de manipular. Si pensamos en una implementación basada en perillas para modificar el espacio latente, contar con $4$ perillas resulta coherente, mientras que tener $32$ puede resultar poco intuitivo.
 
-En busca de encontrar el tamaño ideal experimentamos con los tamaños $2, 3, 4, 6, 8$ y graficamos el error de reconstrucción en el dataset de validación para cada modelo (instrumentos y modelo base). Esperamos verificar que el error disminuya a medida que el espacio latente aumenta, y queremos ver si podemos evitar ir hasta un espacio de dimensión 8 para tener una performance aceptable.
+Con el objetivo de encontrar el tamaño ideal, experimentamos con dimensiones $2$, $3$, $4$, $6$ y $8$, y graficamos el error de reconstrucción sobre el conjunto de validación para cada modelo (los modelos por instrumento y el modelo base). El propósito es verificar que el error disminuya a medida que la dimensión del espacio latente aumenta y, a la vez, evaluar si es posible evitar dimensiones tan grandes como $8$ manteniendo una performance aceptable.
 
 \begin{figure}[H]
 \caption{Error de Reconstrucción (MSE) vs Dimensión de espacio latente, $\beta=0$}
@@ -147,9 +147,9 @@ En busca de encontrar el tamaño ideal experimentamos con los tamaños $2, 3, 4,
 \includegraphics[scale=0.45]{imgs/01_arquitectura/5_recon_evolution_no_beta.png}
 \end{figure}
 
-Analizando los resultados obtenidos en las figuras \ref{fig:mse_vs_dim} \ref{fig:mse_vs_dim_prom} podemos ver que con un espacio latente de dimensión 4 obtenemos una ganancia significativa en comparación a 2 y 3, y aumentar el tamaño a 6 y 8 no obteiene una ganancia significativa en general.
+Analizando los resultados de las figuras~\ref{fig:mse_vs_dim} y~\ref{fig:mse_vs_dim_prom} observamos que, con un espacio latente de dimensión $4$, obtenemos una ganancia significativa respecto a las dimensiones $2$ y $3$, mientras que aumentar el tamaño a $6$ u $8$ no aporta una mejora relevante.
 
-Nos interesa también verificar este comportamiento para la arquitectura $\beta-VAE$, esperando ver en magnitud un error de reconstrucción mayor (recordamos que la \textit{loss} de estos modelos también está dada por la divergencia KL) pero con la misma tendencia.
+Nos interesa también verificar este comportamiento para la arquitectura $\beta$-VAE, donde esperamos observar un error de reconstrucción mayor en magnitud---ya que la \textit{loss} de estos modelos incorpora también la divergencia KL---pero con la misma tendencia.
 
 
 \begin{figure}[H]
@@ -159,21 +159,21 @@ Nos interesa también verificar este comportamiento para la arquitectura $\beta-
 \includegraphics[scale=0.45]{imgs/01_arquitectura/2_val_loss_mean_std_with_base.png}
 \end{figure}
 
-En efecto, lo observado para los modelos $AE$ (con $\beta=0$) se cumple cuando tenemos el beta activado. Debemos también verificar el comportamiento de la divergencia KL en los modelos $\beta-VAE$ con los diferentes tamaños de espacio latente.
+En efecto, lo observado para los modelos AE (con $\beta=0$) se cumple también con $\beta$ activado. Resta verificar el comportamiento de la divergencia KL en los modelos $\beta$-VAE para los distintos tamaños de espacio latente, presentado en la figura~\ref{fig:kl_vs_dim}.
 
 \begin{figure}[H]
 \caption{Divergencia KL vs Dimensión de espacio latente, $\beta=0.001$}
 \centering
-\label{fig:centralidad}
+\label{fig:kl_vs_dim}
 \includegraphics[scale=0.45]{imgs/01_arquitectura/4_beta_kl_evolution.png}
 \end{figure}
 
-Efectivamente el salto más significativo se encuentra entre 2 y 4 y luego sigue mejorando pero con menos ganancia relativa. En base a estos resultados tomamos para el resto de experimentos arquitecturas con espacio latente de dimensión 4.
+Efectivamente, el salto más significativo se encuentra entre las dimensiones $2$ y $4$, y a partir de allí la KL sigue disminuyendo pero con una ganancia relativa menor. En la figura~\ref{fig:mse_per_instrument} se presenta además el desglose del error de reconstrucción por instrumento, que confirma la misma tendencia. En base a estos resultados, adoptamos para el resto de los experimentos arquitecturas con espacio latente de dimensión $4$.
 
 \begin{figure}[H]
 \caption{Desglose: Error de Reconstrucción (MSE) por modelo}
 \centering
-\label{fig:centralidad}
+\label{fig:mse_per_instrument}
 \includegraphics[scale=0.35]{imgs/01_arquitectura/1_comparacion_por_instrumento.png}
 \end{figure}
 
@@ -207,45 +207,51 @@ Queremos validar que
 
 \section{Análisis del Espacio Latente}
 
+Para analizar la organización del espacio latente del modelo base, proyectamos los \textit{embeddings} a $2$ dimensiones mediante UMAP, etiquetando cada muestra con el instrumento al que corresponde. Esto nos permite evaluar visualmente si los distintos instrumentos forman \textit{clusters} diferenciados y comparar el comportamiento entre las configuraciones $\beta=0$ y $\beta=0.001$. Los resultados se presentan en la figura~\ref{fig:umap}.
+
 \begin{figure}[H]
-\caption{Proyección a 2 dimensiones utilizando UMAP.}
+\caption{Proyección a 2 dimensiones del espacio latente del modelo base utilizando UMAP.}
+\label{fig:umap}
 \begin{subfigure}{.5\textwidth}
     \caption{$\beta = 0.001$.}
     \centering
-    \label{fig:epsilon1}
+    \label{fig:umap_beta}
     \includegraphics[width=\linewidth]{imgs/03_umap/base_model_beta_instruments_umap.png}
 \end{subfigure}
 \begin{subfigure}{.5\textwidth}
     \caption{$\beta=0$.}
     \centering
-    \label{fig:epsilon2}
+    \label{fig:umap_no_beta}
     \includegraphics[width=\linewidth]{imgs/03_umap/base_model_no_beta_instruments_umap.png}
 \end{subfigure}
 \end{figure}
 
+Para cuantificar la separación entre los \textit{clusters} de cada instrumento computamos las distancias entre sus centroides en la proyección UMAP, sintetizadas en la matriz de la figura~\ref{fig:umap_sep}.
+
 \begin{figure}[H]
-\caption{Distancia entre clusters de la proyección REVISAR.}
+\caption{Matriz de separación entre \textit{clusters} de instrumentos en la proyección UMAP.}
+\label{fig:umap_sep}
 \begin{subfigure}{.5\textwidth}
     \caption{$\beta = 0.001$.}
     \centering
-    \label{fig:epsilon1}
+    \label{fig:umap_sep_beta}
     \includegraphics[width=\linewidth]{imgs/03_umap/base_model_beta_instruments_umap_separation_matrix.png}
 \end{subfigure}
 \begin{subfigure}{.5\textwidth}
     \caption{$\beta = 0$.}
     \centering
-    \label{fig:epsilon2}
+    \label{fig:umap_sep_no_beta}
     \includegraphics[width=\linewidth]{imgs/03_umap/base_model_no_beta_instruments_umap_separation_matrix.png}
 \end{subfigure}
 \end{figure}
 
 \section{Interpolación}
 
-El primer experimento de interpolación tiene como objetivo verificar que la transición del parámetro $\alpha$ de $0$ a $1$ aproxima gradualmente las características del audio generado a las del instrumento de destino (Instrumento B). Para ello, se fijó el Instrumento B (en este caso, piano), se muestreó un vector latente aleatorio $Z$ y se decodificó utilizando el modelo correspondiente a dicho instrumento, estableciendo así un audio de referencia. Posteriormente, para distintos valores intermedios de $\alpha$, se interpolaron los pesos de los modelos A y B, se decodificó el mismo vector $Z$ y se evaluó la similitud respecto a la referencia utilizando dos métricas: distancia coseno sobre \textit{embeddings} de BERT y FAD (\textit{Fréchet Audio Distance}). Trivialmente, cuando $\alpha=1$, la similitud debe alcanzar su valor máximo en ambos casos. La hipótesis principal es que la curva de similitud crecerá de forma monotónica en función de $\alpha$, evidenciando una transición acústica hacia el timbre del piano.
+El primer experimento de interpolación tiene como objetivo verificar que la transición del parámetro $\alpha$ de $0$ a $1$ aproxima gradualmente las características del audio generado a las del instrumento de destino (Instrumento B). Para ello, se fijó el Instrumento B (en este caso, piano), se muestreó un vector latente aleatorio $Z$ y se decodificó utilizando el modelo correspondiente a dicho instrumento, estableciendo así un audio de referencia. Posteriormente, para distintos valores intermedios de $\alpha$, se interpolaron los pesos de los modelos A y B, se decodificó el mismo vector $Z$ y se evaluó la similitud respecto al audio de referencia mediante dos métricas: similitud coseno sobre \textit{embeddings} de MERT~\cite{li2023mert} y FAD (\textit{Fréchet Audio Distance})~\cite{gui2024adaptingfrechetaudiodistance}. Trivialmente, cuando $\alpha=1$ la interpolación coincide con el modelo del Instrumento B y la similitud alcanza su valor máximo. La hipótesis principal es que la similitud crecerá de forma monótona en función de $\alpha$, evidenciando una transición acústica hacia el timbre del piano.
 
-Este procedimiento se evaluó bajo dos configuraciones de entrenamiento: modelos inicializados desde un \textit{checkpoint} común con un factor de regularización $\beta=0.001$, y modelos entrenados desde cero (\textit{scratch}) con $\beta=0$. Se espera observar un contraste significativo en la dinámica de interpolación. Partir de modelos con \textit{checkpoint} compartido y $\beta > 0$ debería resultar en una curva más suave y predecible a medida que $\alpha$ aumenta, dado que la interpolación directa de pesos es más efectiva cuando los modelos habitan el mismo entorno en el espacio de parámetros. Por el contrario, al interpolar modelos entrenados desde \textit{scratch} y sin regularización, es probable que los valores intermedios de $\alpha$ generen representaciones ruidosas, impidiendo un crecimiento gradual de la similitud y resultando en un salto abrupto únicamente para valores de $\alpha$ muy cercanos a $1$.
+Este procedimiento se evaluó bajo cuatro configuraciones de entrenamiento, combinando el origen de los pesos (\textit{checkpoint} común vs.\ desde \textit{scratch}) con dos factores de regularización ($\beta=0$ y $\beta=0.001$). Esperamos observar un contraste significativo en la dinámica de interpolación entre los extremos. Partir de modelos con \textit{checkpoint} compartido y $\beta > 0$ debería resultar en una curva más suave y predecible a medida que $\alpha$ aumenta, ya que la interpolación directa de pesos es más efectiva cuando los modelos habitan el mismo entorno en el espacio de parámetros. Por el contrario, al interpolar modelos entrenados desde \textit{scratch} y sin regularización, es probable que los valores intermedios de $\alpha$ generen representaciones ruidosas, impidiendo un crecimiento gradual de la similitud y resultando en un salto abrupto únicamente para valores de $\alpha$ cercanos a $1$.
 
-Para garantizar la robustez de los resultados, este proceso se repitió utilizando $10$ vectores latentes aleatorios diferentes. En los gráficos subsiguientes se reporta el promedio de las métricas de similitud evaluadas, junto con su desviación estándar, para cada valor de $\alpha$.
+Para garantizar la robustez de los resultados, este proceso se repitió utilizando $10$ vectores latentes aleatorios diferentes. En las figuras~\ref{fig:sim_checkpoint_no_beta},~\ref{fig:sim_checkpoint_beta},~\ref{fig:sim_scratch_no_beta} y~\ref{fig:sim_scratch_beta} se reporta el promedio de las métricas de similitud, junto con su desviación estándar, para cada valor de $\alpha$.
 
 
 \begin{figure}[H]
@@ -285,31 +291,31 @@ Para garantizar la robustez de los resultados, este proceso se repitió utilizan
     \end{minipage}
 \end{figure}
 
-En la figura \ref{fig:sim_checkpoint_beta} se puede observar, en ambas métricas, un crecimiento suave y que aumenta consistentemente en cada $\alpha$, mientras que para el caso de modelos entrenados desde \textit{scratch} y sin beta \ref{fig:sim_scratch_no_beta} no hay una mejora entre $\alpha=0$ y $\alpha=0.7$. Luego para $\alpha \in [0.8, 1.0]$ se observa una crecida pronunciada dado que ya estamos en un punto de la interpolación donde casi todo el modelo es el correspondiente al instrumento B.
+En la figura~\ref{fig:sim_checkpoint_beta} se observa, en ambas métricas, un crecimiento suave y consistente al aumentar $\alpha$, mientras que en el caso de modelos entrenados desde \textit{scratch} y sin regularización (figura~\ref{fig:sim_scratch_no_beta}) no se aprecia una mejora entre $\alpha=0$ y $\alpha=0.7$. Recién para $\alpha \in [0.8, 1.0]$ se observa una subida pronunciada, dado que en ese rango la interpolación está dominada por los pesos del modelo del instrumento B.
 
-Esta observación nos da un indicio de lo que creíamos: interpolar modelos que fueron entrenados desde \textit{scratch} y sin beta ($\beta=0$) nos lleva a peores interpolaciones.
+Esta observación confirma nuestra hipótesis: interpolar modelos entrenados desde \textit{scratch} y sin regularización ($\beta=0$) conduce a peores resultados de interpolación.
 
-Con esto verificamos que acercarnos en alfa a un extremo efectivamente acerca el sonido al instrumento que corresponde. Nos interesa verificar también que dicha interpolación se fue alejando del instrumento A y que no se acerca en promedio a otros instrumentos.
+Con esto verificamos que acercar $\alpha$ a un extremo aproxima efectivamente el sonido al instrumento correspondiente. Resta verificar también que la interpolación se aleja del instrumento A y que no se aproxima, en promedio, a otros instrumentos no involucrados.
 
-Para esto, se propone un experimento similar en el que se medirá la similitud contra un audio de referencia del instrumento A y un audio de referencia de un instrumento \textit{witness} diferente de A y B. Lo que esperamos que suceda a medida que crece el $\alpha$ es que se debe acercar en similitud al instrumento B, mientras que se debe alejar del instrumento A. Con respecto al instrumento \textit{witness}, se debe mantener en un valor constante a lo largo de los distintos valores de alpha. También esperamos que la curva de la similitud del instrumento A y la curva de la similitud del instrumento B se crucen en aproximadamente $\alpha=0.5$.
+Para ello proponemos un experimento similar en el que se mide la similitud contra un audio de referencia del instrumento A, otro del instrumento B y un audio de un instrumento \textit{testigo} (distinto de A y B). A medida que crece $\alpha$ esperamos que la similitud al instrumento B aumente y la del instrumento A disminuya, mientras que la del instrumento testigo se mantenga aproximadamente constante. Esperamos también que las curvas de similitud de los instrumentos A y B se crucen aproximadamente en $\alpha=0.5$.
 
-Vamos a comparar las distintas configuraciones de modelos entrenados desde \textit{checkpoint} y \textit{scratch} combinado con los valores de $\beta=0$ y $\beta=0.001$. Usando como instrumento A piano, instrumento B guitarra e instrumento \textit{witness} voz.
+Comparamos las cuatro configuraciones de modelos resultantes de combinar el origen (\textit{checkpoint} y \textit{scratch}) con los valores $\beta=0$ y $\beta=0.001$. Usamos piano como instrumento A, guitarra como instrumento B y voz como instrumento testigo. Los resultados se presentan en la figura~\ref{fig:transicion_piano_guitarra}.
 
 
 \begin{figure}[H]
-\caption{Transición de Piano a Guitarra; comparación entre origen y $\beta$}
+\caption{Transición de piano a guitarra: comparación entre origen de los pesos (\textit{checkpoint} vs.\ \textit{scratch}) y valores de $\beta$. La voz actúa como instrumento testigo.}
 \centering
-\label{fig:centralidad}
+\label{fig:transicion_piano_guitarra}
 \includegraphics[scale=0.5]{imgs/plots/fad_random_latent_gaussian_piano_to_guitar.png}
 \end{figure}
 
-Como esperabamos, la configuración que mejor se comporta es la de modelos entrenados desde \textit{checkpoint} y $\beta=0.001$; donde se puede observar que el instrumento A (piano) decrece consistenmente a la vez que el instrumento B (guitarra) crece, cruzándose en $\alpha=0.5$. En este caso, la voz se mentiene con una similitud constante.
+Como esperábamos, la configuración que mejor se comporta es la de modelos entrenados desde \textit{checkpoint} con $\beta=0.001$: se observa que la similitud al instrumento A (piano) decrece consistentemente al mismo tiempo que la del instrumento B (guitarra) crece, cruzándose alrededor de $\alpha=0.5$. La similitud de la voz, por su parte, se mantiene aproximadamente constante.
 
-Luego, para los casos de \textit{scratch} el comportamiento es menos predecible: en el caso de $\beta=0.001$ pudimos observar una leve transferencia tímbrica pero no muy consistente ya que en los alfas intermedios no hay mucha variación mientras que para el caso de $\beta=0$ directamente no hay transferencia y la similitud del instrumento B recién aumenta a partir de $\alpha=0.8$.
+En cambio, para los modelos entrenados desde \textit{scratch} el comportamiento es menos predecible: con $\beta=0.001$ se observa una leve transferencia tímbrica, aunque poco consistente, ya que para valores intermedios de $\alpha$ apenas hay variación; con $\beta=0$ directamente no hay transferencia y la similitud al instrumento B recién aumenta a partir de $\alpha=0.8$.
 
-El caso de \textit{checkpoint} y $\beta=0$ sí tuvo la transferencia tímbrica que buscamos pero de una manera más brusca, ya que se observa una caída pronunciada del instrumento A en los primeros valores de alfa. También en este caso el instrumento testigo tuvo un comportamiento más errático.
+El caso de \textit{checkpoint} con $\beta=0$ sí logra la transferencia tímbrica buscada, aunque de manera más abrupta: se observa una caída pronunciada de la similitud al instrumento A en los primeros valores de $\alpha$. Además, en esta configuración el instrumento testigo presenta un comportamiento más errático.
 
-Logramos con este experimento confirmar que la configuración de modelos más adecuada para la interpolación es la de modelos entrenados desde \textit{checkpoint} y con un $\beta>0$, en particular $\beta=0.001$.
+Con este experimento confirmamos que la configuración más adecuada para la interpolación es la de modelos entrenados desde \textit{checkpoint} con $\beta>0$, en particular $\beta=0.001$.
 
 \section{Barrido de dimensión del espacio latente}
 % Dims (2,3,4,6,8) × instrumento × 5 repeticiones, VAE vs β-VAE.
