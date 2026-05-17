@@ -20,6 +20,7 @@ from audio_comparator import (
     get_embedding,
     get_matrix_embedding,
 )
+from audio_utils import get_spectrograms_from_audios
 from experiments.interpolate import interpolar_vae
 from scripts.vae_predict import predict_audio
 
@@ -64,16 +65,55 @@ def _decode_to_wav(model, z, xmax, hps, phase_option, out_path):
     return str(out_path)
 
 
+def _list_valid_audio_files(folder, hps, num_frames):
+    folder = Path(folder)
+    target_sr = hps["target_sampling_rate"]
+    min_samples = num_frames * hps["hop_length"] + hps["win_length"]
+    valid = []
+    for ext in ("*.wav", "*.mp3"):
+        for p in sorted(folder.glob(ext)):
+            try:
+                info = sf.info(str(p))
+            except Exception:
+                continue
+            n_at_target = int(info.frames * (target_sr / info.samplerate))
+            if n_at_target >= min_samples:
+                valid.append(p)
+    if not valid:
+        raise FileNotFoundError(f"Sin audios largos suficientes en {folder} para {num_frames} frames.")
+    return valid
+
+
+def _encode_audio_to_z(model, hps, audio_path, num_frames):
+    X, _, _, _ = get_spectrograms_from_audios(
+        [Path(audio_path)],
+        hps["target_sampling_rate"],
+        hps["win_length"],
+        hps["hop_length"],
+        db_min_norm=hps["db_min_norm"],
+        spec_in_db=hps["spec_in_db"],
+        normalize_each_audio=hps["normalize_each_audio"],
+    )
+    if X.shape[0] < num_frames:
+        raise ValueError(f"{audio_path}: spec tiene {X.shape[0]} frames, se necesitan {num_frames}")
+    X = X[:num_frames]
+    with torch.no_grad():
+        mu, _ = model.encoder(X)
+    return mu
+
+
 def main():
     # ── Config ──────────────────────────────────────────
     instrument_b = "voice"
-    instrument_a = "guitar"
+    instrument_a = "piano"
     num_frames = 64
     num_samples = 10
     phase_mode = "pghi"
     interpolation_mode = "slerp"
     alphas = np.round(np.arange(0.0, 1.0 + 1e-9, 0.1), 2)
     seed = 0
+    ref_path_a = MODEL_DIR / "data_instruments" / instrument_a
+    ref_path_b = MODEL_DIR / "data_instruments" / instrument_b  # simetría; no se usa en este script
     # ────────────────────────────────────────────────────
     for source, beta in [
         ("scratch", "no_beta"),
@@ -88,6 +128,14 @@ def main():
         model_a, hps_a = _load_instrument_model(instrument_a, source, beta)
         print(f"Cargando modelo {instrument_b}...")
         model_b, hps_b = _load_instrument_model(instrument_b, source, beta)
+
+        valid_audios = _list_valid_audio_files(ref_path_a, hps_a, num_frames)
+        assert (
+            len(valid_audios) >= num_samples
+        ), f"Solo {len(valid_audios)} audios válidos en {ref_path_a}, se necesitan {num_samples}"
+        rng = np.random.default_rng(seed)
+        chosen_audios = [valid_audios[i] for i in rng.choice(len(valid_audios), size=num_samples, replace=False)]
+        print(f"Audios elegidos de {ref_path_a.name}: {[p.name for p in chosen_audios]}")
 
         assert hps_a["encoder_layers"] == hps_b["encoder_layers"], "Arquitecturas no coinciden"
         assert hps_a["decoder_layers"] == hps_b["decoder_layers"], "Arquitecturas no coinciden"
@@ -104,7 +152,7 @@ def main():
         try:
             for s in range(num_samples):
                 print(f"\n── Sample {s + 1}/{num_samples} ──")
-                z = torch.randn(num_frames, latent_dim)
+                z = _encode_audio_to_z(model_a, hps_a, chosen_audios[s], num_frames)
 
                 ref_path = _decode_to_wav(model_a, z, xmax_p, hps_a, phase_mode, tmpdir / f"ref_s{s}.wav")
                 ref_vec = get_embedding(ref_path)
@@ -219,7 +267,7 @@ def main():
 
         fig.tight_layout()
         filename = (
-            MODEL_DIR / f"imgs/fad_similarity/similarity_vs_fad_{instrument_b}_{instrument_a}_{source}_{beta}.png"
+            MODEL_DIR / f"imgs/fad_similarity2/similarity_vs_fad_{instrument_b}_{instrument_a}_{source}_{beta}.png"
         )
         plt.savefig(filename)
         print(f"Gráfico guardado como {filename}")

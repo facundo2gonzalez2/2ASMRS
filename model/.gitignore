@@ -41,4 +41,5 @@ AudiosInterpolacion-Nuevos/
 AudiosInterpolacion-Nuevos-Linear/
 test.wav
 audio_morphing_output*/
-imgs/fad_similarity/
+imgs/fad_similarity*/
+test_output_interpolation*/
