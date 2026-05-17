@@ -30,13 +30,14 @@ CONFIG_STYLES = {
 
 def main():
     # ── Config ──────────────────────────────────────────
+    z_latent_random = True
     instrument_goal = "piano"
     source_instruments = ["voice", "guitar", "bass"]
     num_frames = 64
     num_samples = 3
     phase_mode = "pghi"
     interpolation_mode = "slerp"
-    alphas = np.round(np.arange(0.0, 1.0 + 1e-9, 0.1), 2)
+    alphas = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0]
     seed = 0
     ref_path_goal = MODEL_DIR / "data_instruments" / instrument_goal
     # ────────────────────────────────────────────────────
@@ -79,8 +80,13 @@ def main():
             print("\n── Pre-computando Z y referencias del goal ──")
             zs, ref_mats = [], []
             for s in range(num_samples):
-                print(f"  ref sample {s + 1}/{num_samples}: {chosen_audios[s].name}")
-                z = _encode_audio_to_z(model_goal, hps_goal, chosen_audios[s], num_frames)
+                if z_latent_random:
+                    print(f"  ref sample {s + 1}/{num_samples}: (Z aleatorio)")
+                    z = torch.randn(num_frames, latent_dim)
+                else:
+                    print(f"  ref sample {s + 1}/{num_samples}: {chosen_audios[s].name}")
+                    z = _encode_audio_to_z(model_goal, hps_goal, chosen_audios[s], num_frames)
+
                 ref_wav = _decode_to_wav(model_goal, z, xmax_goal, hps_goal, phase_mode, tmpdir / f"ref_s{s}.wav")
                 zs.append(z)
                 ref_mats.append(get_matrix_embedding(ref_wav))
@@ -136,16 +142,27 @@ def main():
 
         fad_results[(source_training, beta)] = (mean_fad, std_fad)
 
+    # ... (código anterior) ...
+
     fig, ax = plt.subplots(figsize=(11, 6))
+
     for cfg, (mean_fad, std_fad) in fad_results.items():
         style = CONFIG_STYLES[cfg]
-        ax.errorbar(
+
+        # Extraemos el color de estilo para aplicarlo también al sombreado
+        color = style.get("color")
+
+        # 1. Graficamos solo la línea principal (sin errorbar)
+        ax.plot(alpha_list, mean_fad, linewidth=2, **style)
+
+        # 2. Usamos fill_between para el área de desviación estándar
+        ax.fill_between(
             alpha_list,
-            mean_fad,
-            yerr=std_fad,
-            linewidth=2,
-            capsize=4,
-            **style,
+            mean_fad - std_fad,
+            mean_fad + std_fad,
+            color=color,
+            alpha=0.15,  # Transparencia alta para que se vean las áreas superpuestas
+            edgecolor="none",
         )
 
     ax.set_xlabel("α", fontsize=12)
@@ -159,10 +176,11 @@ def main():
         fontsize=12,
     )
     fig.tight_layout()
+    # ... (código de guardado) ...
 
     out_dir = MODEL_DIR / "imgs/fad_similarity_aggregated"
     out_dir.mkdir(parents=True, exist_ok=True)
-    filename = out_dir / f"similarity_vs_fad_to_{instrument_goal}_all_configs.png"
+    filename = out_dir / f"similarity_vs_fad_to_{instrument_goal}_all_configs2.png"
     plt.savefig(filename)
     plt.close(fig)
     print(f"\nGráfico guardado como {filename}")
