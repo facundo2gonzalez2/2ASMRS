@@ -110,7 +110,9 @@ def main():
     num_samples = 10
     phase_mode = "pghi"
     interpolation_mode = "slerp"
-    alphas = np.round(np.arange(0.0, 1.0 + 1e-9, 0.1), 2)
+    z_latent_random = True
+    # alphas = np.round(np.arange(0.0, 1.0 + 1e-9, 0.1), 2)
+    alphas = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0]
     seed = 0
     ref_path_a = MODEL_DIR / "data_instruments" / instrument_a
     ref_path_b = MODEL_DIR / "data_instruments" / instrument_b  # simetría; no se usa en este script
@@ -152,7 +154,10 @@ def main():
         try:
             for s in range(num_samples):
                 print(f"\n── Sample {s + 1}/{num_samples} ──")
-                z = _encode_audio_to_z(model_a, hps_a, chosen_audios[s], num_frames)
+                if z_latent_random:
+                    z = torch.randn(num_frames, latent_dim)
+                else:
+                    z = _encode_audio_to_z(model_a, hps_a, chosen_audios[s], num_frames)
 
                 ref_path = _decode_to_wav(model_a, z, xmax_p, hps_a, phase_mode, tmpdir / f"ref_s{s}.wav")
                 ref_vec = get_embedding(ref_path)
@@ -266,8 +271,10 @@ def main():
         ax1.legend(lines, labels, loc="center left")  # type: ignore
 
         fig.tight_layout()
+        z_tag = "zrandom" if z_latent_random else "zencoded"
         filename = (
-            MODEL_DIR / f"imgs/fad_similarity2/similarity_vs_fad_{instrument_b}_{instrument_a}_{source}_{beta}.png"
+            MODEL_DIR
+            / f"imgs/fad_similarity2/similarity_vs_fad_{instrument_b}_{instrument_a}_{source}_{beta}_{z_tag}.png"
         )
         plt.savefig(filename)
         print(f"Gráfico guardado como {filename}")

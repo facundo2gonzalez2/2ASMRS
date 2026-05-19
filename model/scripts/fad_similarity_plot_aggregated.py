@@ -153,7 +153,7 @@ def main():
         color = style.get("color")
 
         # 1. Graficamos solo la línea principal (sin errorbar)
-        ax.plot(alpha_list, mean_fad, linewidth=2, **style)
+        ax.plot(alpha_list, mean_fad, linewidth=2, **style)  # type: ignore
 
         # 2. Usamos fill_between para el área de desviación estándar
         ax.fill_between(
@@ -180,7 +180,8 @@ def main():
 
     out_dir = MODEL_DIR / "imgs/fad_similarity_aggregated"
     out_dir.mkdir(parents=True, exist_ok=True)
-    filename = out_dir / f"similarity_vs_fad_to_{instrument_goal}_all_configs2.png"
+    z_tag = "zrandom" if z_latent_random else "zencoded"
+    filename = out_dir / f"similarity_vs_fad_to_{instrument_goal}_all_configs2_{z_tag}.png"
     plt.savefig(filename)
     plt.close(fig)
     print(f"\nGráfico guardado como {filename}")
