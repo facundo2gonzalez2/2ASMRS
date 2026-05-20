@@ -11,7 +11,7 @@ MODEL_DIR = Path(__file__).resolve().parents[1]
 if str(MODEL_DIR) not in sys.path:
     sys.path.insert(0, str(MODEL_DIR))
 
-from audio_comparator import get_audio_similarity_fad, get_matrix_embedding
+from audio_comparator import get_audio_similarity_fad, get_cosine_similarity, get_matrix_embedding
 from experiments.interpolate import interpolar_vae
 from scripts.fad_similarity_plot import (
     _decode_to_wav,
@@ -27,10 +27,17 @@ CONFIG_STYLES = {
     ("checkpoint", "beta_0.001"): dict(color="tab:red", marker="D", label="checkpoint, β=0.001"),
 }
 
+INSTRUMENT_STYLES = {
+    "voice": dict(color="tab:purple", marker="o", label="voice"),
+    "guitar": dict(color="tab:olive", marker="s", label="guitar"),
+    "bass": dict(color="tab:cyan", marker="^", label="bass"),
+}
+
 
 def main():
     # ── Config ──────────────────────────────────────────
-    z_latent_random = True
+    z_latent_random = False
+    similarity_mode = "fad"  # "fad" o "cos"
     instrument_goal = "piano"
     source_instruments = ["voice", "guitar", "bass"]
     num_frames = 64
@@ -39,10 +46,18 @@ def main():
     interpolation_mode = "slerp"
     alphas = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0]
     seed = 0
+    per_instrument_source_training = "checkpoint"  # "scratch" | "checkpoint"
+    per_instrument_beta = "beta_0.001"  # "no_beta" | "beta_0.001"
     ref_path_goal = MODEL_DIR / "data_instruments" / instrument_goal
+    assert similarity_mode in ("fad", "cos"), f"similarity_mode inválido: {similarity_mode}"
+    assert (
+        per_instrument_source_training,
+        per_instrument_beta,
+    ) in CONFIG_STYLES, "Config per-instrumento inválida"
     # ────────────────────────────────────────────────────
     alpha_list = [float(a) for a in alphas]
-    fad_results = {}  # (source_training, beta) -> (mean_fad, std_fad)
+    sim_results = {}  # (source_training, beta) -> (mean_sim, std_sim)
+    per_instrument_results = None  # inst -> (mean_per_alpha, std_per_alpha) para la config fija
 
     for source_training, beta in CONFIG_STYLES.keys():
         torch.manual_seed(seed)
@@ -78,7 +93,7 @@ def main():
 
         try:
             print("\n── Pre-computando Z y referencias del goal ──")
-            zs, ref_mats = [], []
+            zs, ref_wavs, ref_mats = [], [], []
             for s in range(num_samples):
                 if z_latent_random:
                     print(f"  ref sample {s + 1}/{num_samples}: (Z aleatorio)")
@@ -89,7 +104,9 @@ def main():
 
                 ref_wav = _decode_to_wav(model_goal, z, xmax_goal, hps_goal, phase_mode, tmpdir / f"ref_s{s}.wav")
                 zs.append(z)
-                ref_mats.append(get_matrix_embedding(ref_wav))
+                ref_wavs.append(ref_wav)
+                if similarity_mode == "fad":
+                    ref_mats.append(get_matrix_embedding(ref_wav))
 
             for source_inst in source_instruments:
                 model_b, hps_b = source_models[source_inst]
@@ -98,7 +115,6 @@ def main():
                 for s in range(num_samples):
                     print(f"\n── Sample {s + 1}/{num_samples} ──")
                     z = zs[s]
-                    ref_mat = ref_mats[s]
                     for a in alphas:
                         a_f = float(a)
                         model_i = interpolar_vae(
@@ -121,57 +137,71 @@ def main():
                             phase_mode,
                             tmpdir / f"{source_inst}_s{s}_a{a_f:.2f}.wav",
                         )
-                        fad_sim = float(get_audio_similarity_fad(ref_mat, get_matrix_embedding(wav_path)))
-                        results[source_inst][a_f].append(fad_sim)
-                        print(f"  alpha={a_f:.2f}  fad_sim={fad_sim:.4f}")
+                        if similarity_mode == "fad":
+                            sim = float(get_audio_similarity_fad(ref_mats[s], get_matrix_embedding(wav_path)))
+                        else:
+                            sim = float(get_cosine_similarity(ref_wavs[s], wav_path))
+                        results[source_inst][a_f].append(sim)
+                        print(f"  alpha={a_f:.2f}  {similarity_mode}_sim={sim:.4f}")
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
 
-        per_inst_fad = np.array([[np.mean(results[inst][a]) for a in alpha_list] for inst in source_instruments])
-        mean_fad = per_inst_fad.mean(axis=0)
-        std_fad = per_inst_fad.std(axis=0)
+        per_inst_sim = np.array([[np.mean(results[inst][a]) for a in alpha_list] for inst in source_instruments])
+        mean_sim = per_inst_sim.mean(axis=0)
+        std_sim = per_inst_sim.std(axis=0)
 
-        print("\n── Medias FAD por instrumento ──")
+        sim_label = "FAD" if similarity_mode == "fad" else "Cos MERT"
+        print(f"\n── Medias {sim_label} por instrumento ──")
         for i, inst in enumerate(source_instruments):
-            fad_str = ", ".join(f"{v:.3f}" for v in per_inst_fad[i])
-            print(f"  {inst:6s}  fad=[{fad_str}]")
+            sim_str = ", ".join(f"{v:.3f}" for v in per_inst_sim[i])
+            print(f"  {inst:6s}  {similarity_mode}=[{sim_str}]")
 
-        print("\n── FAD promedio entre instrumentos ──")
-        for a, mf, sf_ in zip(alpha_list, mean_fad, std_fad):
-            print(f" α {a:.2f}: Sim FAD = {mf:.4f}±{sf_:.4f}")
+        print(f"\n── {sim_label} promedio entre instrumentos ──")
+        for a, mf, sf_ in zip(alpha_list, mean_sim, std_sim):
+            print(f" α {a:.2f}: Sim {sim_label} = {mf:.4f}±{sf_:.4f}")
 
-        fad_results[(source_training, beta)] = (mean_fad, std_fad)
+        sim_results[(source_training, beta)] = (mean_sim, std_sim)
+
+        if (source_training, beta) == (per_instrument_source_training, per_instrument_beta):
+            per_instrument_results = {
+                inst: (
+                    np.array([np.mean(results[inst][a]) for a in alpha_list]),
+                    np.array([np.std(results[inst][a]) for a in alpha_list]),
+                )
+                for inst in source_instruments
+            }
 
     # ... (código anterior) ...
 
     fig, ax = plt.subplots(figsize=(11, 6))
 
-    for cfg, (mean_fad, std_fad) in fad_results.items():
+    for cfg, (mean_sim, std_sim) in sim_results.items():
         style = CONFIG_STYLES[cfg]
 
         # Extraemos el color de estilo para aplicarlo también al sombreado
         color = style.get("color")
 
         # 1. Graficamos solo la línea principal (sin errorbar)
-        ax.plot(alpha_list, mean_fad, linewidth=2, **style)  # type: ignore
+        ax.plot(alpha_list, mean_sim, linewidth=2, **style)  # type: ignore
 
         # 2. Usamos fill_between para el área de desviación estándar
         ax.fill_between(
             alpha_list,
-            mean_fad - std_fad,
-            mean_fad + std_fad,
+            mean_sim - std_sim,
+            mean_sim + std_sim,
             color=color,
             alpha=0.15,  # Transparencia alta para que se vean las áreas superpuestas
             edgecolor="none",
         )
 
+    sim_label = "FAD" if similarity_mode == "fad" else "Cos MERT"
     ax.set_xlabel("α", fontsize=12)
-    ax.set_ylabel("Similitud FAD", fontsize=12)
+    ax.set_ylabel(f"Similitud {sim_label}", fontsize=12)
     ax.set_xticks(alpha_list)
     ax.grid(True, linestyle="--", alpha=0.6)
     ax.legend(loc="best", fontsize=10)
     plt.title(
-        f"Similitud FAD vs α hacia {instrument_goal} "
+        f"Similitud {sim_label} vs α hacia {instrument_goal} "
         f"(promedio sobre {len(source_instruments)} sources × {num_samples} samples)",
         fontsize=12,
     )
@@ -181,10 +211,48 @@ def main():
     out_dir = MODEL_DIR / "imgs/fad_similarity_aggregated"
     out_dir.mkdir(parents=True, exist_ok=True)
     z_tag = "zrandom" if z_latent_random else "zencoded"
-    filename = out_dir / f"similarity_vs_fad_to_{instrument_goal}_all_configs2_{z_tag}.png"
+    sim_tag = "fad" if similarity_mode == "fad" else "cos"
+    filename = out_dir / f"similarity_vs_{sim_tag}_aggregated_to_{instrument_goal}_{z_tag}.png"
     plt.savefig(filename)
     plt.close(fig)
     print(f"\nGráfico guardado como {filename}")
+
+    assert per_instrument_results is not None, "per_instrument_results no fue capturado"
+    fig2, ax2 = plt.subplots(figsize=(11, 6))
+    for inst in source_instruments:
+        mean_i, std_i = per_instrument_results[inst]
+        style = INSTRUMENT_STYLES[inst]
+        color = style.get("color")
+        ax2.plot(alpha_list, mean_i, linewidth=2, **style)  # type: ignore
+        ax2.fill_between(
+            alpha_list,
+            mean_i - std_i,
+            mean_i + std_i,
+            color=color,
+            alpha=0.15,
+            edgecolor="none",
+        )
+
+    ax2.set_xlabel("α", fontsize=12)
+    ax2.set_ylabel(f"Similitud {sim_label}", fontsize=12)
+    ax2.set_xticks(alpha_list)
+    ax2.grid(True, linestyle="--", alpha=0.6)
+    ax2.legend(loc="best", fontsize=10)
+    plt.title(
+        f"Similitud {sim_label} por instrumento vs α hacia {instrument_goal} "
+        f"({per_instrument_source_training}, {per_instrument_beta}, "
+        f"promedio sobre {num_samples} samples)",
+        fontsize=12,
+    )
+    fig2.tight_layout()
+
+    filename2 = out_dir / (
+        f"similarity_vs_{sim_tag}_per_instrument_to_{instrument_goal}"
+        f"_{per_instrument_source_training}_{per_instrument_beta}_{z_tag}.png"
+    )
+    plt.savefig(filename2)
+    plt.close(fig2)
+    print(f"Gráfico per-instrumento guardado como {filename2}")
 
 
 if __name__ == "__main__":
