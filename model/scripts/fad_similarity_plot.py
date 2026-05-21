@@ -142,7 +142,7 @@ def main():
     instrument_b = "voice"
     instrument_a = "piano"
     num_frames = 64
-    num_samples = 10
+    num_samples = 5
     phase_mode = "pghi"
     interpolation_mode = "slerp"
     z_latent_random = True
@@ -246,8 +246,9 @@ def main():
         fig, ax1 = plt.subplots(figsize=(10, 6))
 
         color1 = "tab:blue"
+        color2 = "tab:red"
         ax1.set_xlabel("α", fontsize=12)
-        ax1.set_ylabel("Similitud de Coseno (MERT)", color=color1, fontsize=12)
+        ax1.set_ylabel("Similitud", fontsize=12)
         (line1,) = ax1.plot(
             alpha_list,
             mean_cos,
@@ -257,7 +258,6 @@ def main():
             label="Similitud MERT",
         )
         ax1.fill_between(alpha_list, mean_cos - std_cos, mean_cos + std_cos, color=color1, alpha=0.15)
-        ax1.tick_params(axis="y", labelcolor=color1)
         ax1.set_xticks(alpha_list)
 
         for x, y in zip(alpha_list, mean_cos):
@@ -272,11 +272,7 @@ def main():
                 fontweight="bold",
             )
 
-        ax2 = ax1.twinx()
-
-        color2 = "tab:red"
-        ax2.set_ylabel("Similitud FAD", color=color2, fontsize=12)
-        (line2,) = ax2.plot(
+        (line2,) = ax1.plot(
             alpha_list,
             mean_fad,
             marker="s",
@@ -285,11 +281,10 @@ def main():
             linestyle="--",
             label="Similitud FAD",
         )
-        ax2.fill_between(alpha_list, mean_fad - std_fad, mean_fad + std_fad, color=color2, alpha=0.15)
-        ax2.tick_params(axis="y", labelcolor=color2)
+        ax1.fill_between(alpha_list, mean_fad - std_fad, mean_fad + std_fad, color=color2, alpha=0.15)
 
         for x, y in zip(alpha_list, mean_fad):
-            ax2.annotate(
+            ax1.annotate(
                 f"{y:.3f}",
                 (x, y),
                 textcoords="offset points",
@@ -314,7 +309,7 @@ def main():
         z_tag = "zrandom" if z_latent_random else "zencoded"
         filename = (
             MODEL_DIR
-            / f"imgs/fad_similarity2/similarity_vs_fad_{instrument_b}_{instrument_a}_{source}_{beta}_{z_tag}.png"
+            / f"imgs/fad_similarity_new/similarity_vs_fad_{instrument_b}_{instrument_a}_{source}_{beta}_{z_tag}.png"
         )
         plt.savefig(filename)
         print(f"Gráfico guardado como {filename}")
