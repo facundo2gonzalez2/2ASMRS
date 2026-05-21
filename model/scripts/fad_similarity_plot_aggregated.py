@@ -14,10 +14,12 @@ if str(MODEL_DIR) not in sys.path:
 from audio_comparator import get_audio_similarity_fad, get_cosine_similarity, get_matrix_embedding
 from experiments.interpolate import interpolar_vae
 from scripts.fad_similarity_plot import (
+    _compute_z_distribution,
     _decode_to_wav,
     _encode_audio_to_z,
     _list_valid_audio_files,
     _load_instrument_model,
+    _sample_z_from_distribution,
 )
 
 CONFIG_STYLES = {
@@ -36,7 +38,7 @@ INSTRUMENT_STYLES = {
 
 def main():
     # ── Config ──────────────────────────────────────────
-    z_latent_random = False
+    z_latent_random = True
     similarity_mode = "fad"  # "fad" o "cos"
     instrument_goal = "piano"
     source_instruments = ["voice", "guitar", "bass"]
@@ -87,6 +89,11 @@ def main():
         chosen_audios = [valid[i] for i in rng.choice(len(valid), size=num_samples, replace=False)]
         print(f"Audios elegidos de {ref_path_goal.name}: {[p.name for p in chosen_audios]}")
 
+        if z_latent_random:
+            stats_audios = valid[: min(25, len(valid))]
+            z_mean, z_std = _compute_z_distribution(model_goal, hps_goal, stats_audios)
+            print(f"Z ~ N(μ, σ) ajustada sobre {len(stats_audios)} audios de {instrument_goal}")
+
         results = {inst: {float(a): [] for a in alphas} for inst in source_instruments}
         tmpdir = Path(tempfile.mkdtemp(prefix="fad_similarity_agg_"))
         print(f"Directorio temporal: {tmpdir}")
@@ -96,8 +103,8 @@ def main():
             zs, ref_wavs, ref_mats = [], [], []
             for s in range(num_samples):
                 if z_latent_random:
-                    print(f"  ref sample {s + 1}/{num_samples}: (Z aleatorio)")
-                    z = torch.randn(num_frames, latent_dim)
+                    print(f"  ref sample {s + 1}/{num_samples}: (Z ~ N(μ, σ) de {instrument_goal})")
+                    z = _sample_z_from_distribution(z_mean, z_std, num_frames)
                 else:
                     print(f"  ref sample {s + 1}/{num_samples}: {chosen_audios[s].name}")
                     z = _encode_audio_to_z(model_goal, hps_goal, chosen_audios[s], num_frames)

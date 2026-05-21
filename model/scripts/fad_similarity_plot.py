@@ -102,6 +102,41 @@ def _encode_audio_to_z(model, hps, audio_path, num_frames):
     return mu
 
 
+def _compute_z_distribution(model, hps, audio_files):
+    sum_z = None
+    sum_z_sq = None
+    total_frames = 0
+    for audio_path in audio_files:
+        X, _, _, _ = get_spectrograms_from_audios(
+            [Path(audio_path)],
+            hps["target_sampling_rate"],
+            hps["win_length"],
+            hps["hop_length"],
+            db_min_norm=hps["db_min_norm"],
+            spec_in_db=hps["spec_in_db"],
+            normalize_each_audio=hps["normalize_each_audio"],
+        )
+        with torch.no_grad():
+            mu, _ = model.encoder(X)
+        if sum_z is None:
+            sum_z = torch.zeros(mu.shape[1])
+            sum_z_sq = torch.zeros(mu.shape[1])
+        sum_z += mu.sum(dim=0).cpu()
+        sum_z_sq += (mu**2).sum(dim=0).cpu()
+        total_frames += mu.shape[0]
+    if total_frames == 0 or sum_z is None or sum_z_sq is None:
+        raise ValueError("No se obtuvieron frames para calcular estadísticas de Z.")
+    mean = sum_z / total_frames
+    var = sum_z_sq / total_frames - mean**2
+    std = torch.sqrt(torch.clamp(var, min=0.0))
+    return mean, std
+
+
+def _sample_z_from_distribution(mean, std, num_frames):
+    latent_dim = mean.shape[0]
+    return mean.unsqueeze(0) + std.unsqueeze(0) * torch.randn(num_frames, latent_dim)
+
+
 def main():
     # ── Config ──────────────────────────────────────────
     instrument_b = "voice"
@@ -139,6 +174,11 @@ def main():
         chosen_audios = [valid_audios[i] for i in rng.choice(len(valid_audios), size=num_samples, replace=False)]
         print(f"Audios elegidos de {ref_path_a.name}: {[p.name for p in chosen_audios]}")
 
+        if z_latent_random:
+            stats_audios = valid_audios[: min(25, len(valid_audios))]
+            z_mean, z_std = _compute_z_distribution(model_a, hps_a, stats_audios)
+            print(f"Z ~ N(μ, σ) ajustada sobre {len(stats_audios)} audios de {instrument_a}")
+
         assert hps_a["encoder_layers"] == hps_b["encoder_layers"], "Arquitecturas no coinciden"
         assert hps_a["decoder_layers"] == hps_b["decoder_layers"], "Arquitecturas no coinciden"
         assert hps_a["latent_dim"] == hps_b["latent_dim"], "Arquitecturas no coinciden"
@@ -155,7 +195,7 @@ def main():
             for s in range(num_samples):
                 print(f"\n── Sample {s + 1}/{num_samples} ──")
                 if z_latent_random:
-                    z = torch.randn(num_frames, latent_dim)
+                    z = _sample_z_from_distribution(z_mean, z_std, num_frames)
                 else:
                     z = _encode_audio_to_z(model_a, hps_a, chosen_audios[s], num_frames)
 
