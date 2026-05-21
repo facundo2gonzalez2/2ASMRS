@@ -11,9 +11,9 @@ MODEL_DIR = Path(__file__).resolve().parents[1]
 if str(MODEL_DIR) not in sys.path:
     sys.path.insert(0, str(MODEL_DIR))
 
-from audio_comparator import get_audio_similarity_fad, get_cosine_similarity, get_matrix_embedding
-from experiments.interpolate import interpolar_vae
-from scripts.fad_similarity_plot import (
+from audio_comparator import get_audio_similarity_fad, get_cosine_similarity, get_matrix_embedding  # noqa: E402
+from experiments.interpolate import interpolar_vae  # noqa: E402
+from scripts.fad_similarity_plot import (  # noqa: E402
     _compute_z_distribution,
     _decode_to_wav,
     _encode_audio_to_z,
@@ -38,12 +38,12 @@ INSTRUMENT_STYLES = {
 
 def main():
     # ── Config ──────────────────────────────────────────
-    z_latent_random = True
+    z_latent_random = False
     similarity_mode = "fad"  # "fad" o "cos"
     instrument_goal = "piano"
     source_instruments = ["voice", "guitar", "bass"]
     num_frames = 64
-    num_samples = 3
+    num_samples = 10
     phase_mode = "pghi"
     interpolation_mode = "slerp"
     alphas = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0]
