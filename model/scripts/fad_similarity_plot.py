@@ -150,7 +150,6 @@ def main():
     alphas = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0]
     seed = 0
     ref_path_a = MODEL_DIR / "data_instruments" / instrument_a
-    ref_path_b = MODEL_DIR / "data_instruments" / instrument_b  # simetría; no se usa en este script
     # ────────────────────────────────────────────────────
     for source, beta in [
         ("scratch", "no_beta"),
