@@ -33,6 +33,7 @@ INSTRUMENT_STYLES = {
     "voice": dict(color="tab:purple", marker="o", label="voice"),
     "guitar": dict(color="tab:olive", marker="s", label="guitar"),
     "bass": dict(color="tab:cyan", marker="^", label="bass"),
+    "piano": dict(color="tab:pink", marker="D", label="piano"),
 }
 
 
