@@ -17,9 +17,7 @@ def count_total_duration(dataset_path, extension: str = ".wav"):
             duration = librosa.get_duration(path=file_path)
             total_duration += duration
             if (i + 1) % 100 == 0:
-                print(
-                    f"Processed {i + 1}/{len(files)} files. Current total: {total_duration:.2f}s"
-                )
+                print(f"Processed {i + 1}/{len(files)} files. Current total: {total_duration:.2f}s")
         except Exception as e:
             print(f"Error processing {file_path}: {e}")
 
@@ -78,7 +76,7 @@ if __name__ == "__main__":
     current_dir = os.path.dirname(os.path.abspath(__file__))
     # Based on previous exploration, dataset is at model/data/VocalSet
     # If this script is in model/, then data/VocalSet is correct relative path
-    dataset_path = os.path.join(current_dir, "data_instruments")
+    dataset_path = os.path.join(current_dir, "..", "data_instruments")
     instruments = ["piano", "voice", "guitar", "bass"]
 
     for instrument in instruments:
