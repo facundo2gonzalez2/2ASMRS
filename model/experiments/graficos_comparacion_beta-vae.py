@@ -13,7 +13,6 @@ parser.add_argument(
 args = parser.parse_args()
 output_dir = args.output_dir
 
-# Crear carpeta de imágenes si no existe
 os.makedirs(output_dir, exist_ok=True)
 
 model_base = "experiments_models/base_model_beta_variation"
@@ -28,37 +27,29 @@ beta_dirs = {
 
 plt.style.use("seaborn-v0_8-whitegrid")
 
-fig_recon, ax_recon = plt.subplots(1, 2, figsize=(16, 6))
-fig_kl, ax_kl = plt.subplots(1, 2, figsize=(16, 6))
-fig_kl_zoom, ax_kl_zoom = plt.subplots(1, 2, figsize=(16, 6))
+pareto_data = []
+window_size = 30
 
-fig_recon.suptitle("Evolución del Error de Reconstrucción (Train vs Val)", fontsize=16)
-fig_kl.suptitle("Evolución de la Divergencia KL (Train vs Val) - Escala Amplia", fontsize=16)
-fig_kl_zoom.suptitle("Evolución de la Divergencia KL (Train vs Val) - Zoom In", fontsize=16)
+# Crear las tres figuras
+fig_val, ax_val = plt.subplots(1, 2, figsize=(16, 6))
+fig_pareto_lin, ax_pareto_lin = plt.subplots(figsize=(8, 6))
+fig_pareto_log, ax_pareto_log = plt.subplots(figsize=(8, 6))
 
-ax_recon[0].set_title("Train Reconstruction Error")
-ax_recon[0].set_xlabel("Paso / Etapa")
-ax_recon[0].set_ylabel("Error")
+fig_val.suptitle("Dinámicas de Validación Suavizadas (Media Móvil)", fontsize=16, fontweight="bold")
+fig_pareto_lin.suptitle(
+    "Trade-off: Error vs Divergencia KL\n(Escala Lineal, excluyendo $\\beta=0$)", fontsize=16, fontweight="bold"
+)
+fig_pareto_log.suptitle(
+    "Trade-off: Error vs Divergencia KL\n(Escala Logarítmica, incluyendo $\\beta=0$)", fontsize=16, fontweight="bold"
+)
 
-ax_recon[1].set_title("Validation Reconstruction Error")
-ax_recon[1].set_xlabel("Paso / Etapa")
-ax_recon[1].set_ylabel("Error")
+ax_val[0].set_title("Validation Reconstruction Error")
+ax_val[0].set_xlabel("Paso / Etapa")
+ax_val[0].set_ylabel("Error")
 
-ax_kl[0].set_title("Train KL Divergence")
-ax_kl[0].set_xlabel("Paso / Etapa")
-ax_kl[0].set_ylabel("KL")
-
-ax_kl[1].set_title("Validation KL Divergence")
-ax_kl[1].set_xlabel("Paso / Etapa")
-ax_kl[1].set_ylabel("KL")
-
-ax_kl_zoom[0].set_title("Train KL Divergence")
-ax_kl_zoom[0].set_xlabel("Paso / Etapa")
-ax_kl_zoom[0].set_ylabel("KL")
-
-ax_kl_zoom[1].set_title("Validation KL Divergence")
-ax_kl_zoom[1].set_xlabel("Paso / Etapa")
-ax_kl_zoom[1].set_ylabel("KL")
+ax_val[1].set_title("Validation KL Divergence")
+ax_val[1].set_xlabel("Paso / Etapa")
+ax_val[1].set_ylabel("KL")
 
 for dir_name, beta in beta_dirs.items():
     csv_path = os.path.join(model_base, dir_name, "version_0", "metrics_history_vae.csv")
@@ -68,81 +59,110 @@ for dir_name, beta in beta_dirs.items():
 
     df = pd.read_csv(csv_path)
 
-    # Train Recon
-    if "train_recon" in df.columns:
-        train_recon_q = df["train_recon"].dropna()
-        # Ignoramos el paso 0 que suele tener un error gigante (outlier inicial)
-        train_recon_q = train_recon_q.iloc[1:]
-        ax_recon[0].plot(train_recon_q.index, train_recon_q.values, label=f"Beta {beta}")
+    val_recon_col = "val_recon" if "val_recon" in df.columns else None
+    val_kl_col = "val_kl"
 
-    # Val Recon
-    if "val_recon" in df.columns:
-        val_recon_q = df["val_recon"].dropna()
-        val_recon_q = val_recon_q.iloc[1:]
-        ax_recon[1].plot(val_recon_q.index, val_recon_q.values, label=f"Beta {beta}")
+    if val_recon_col and val_kl_col:
+        val_recon = df[val_recon_col].dropna().iloc[1:]
+        val_kl = df[val_kl_col].dropna().iloc[1:]
 
-    # Train KL
-    if "train_kl" in df.columns:
-        train_kl_q = df["train_kl"].dropna()
-    elif "train_bkl" in df.columns:
-        train_kl_q = df["train_bkl"].dropna()
-    else:
-        train_kl_q = pd.Series(dtype=float)
+        # 1. Series temporales suavizadas
+        recon_smooth = val_recon.rolling(window=window_size, min_periods=1).mean()
+        kl_smooth = val_kl.rolling(window=window_size, min_periods=1).mean()
 
-    if not train_kl_q.empty:
-        train_kl_q = train_kl_q.iloc[1:]
-        ax_kl[0].plot(train_kl_q.index, train_kl_q.values, label=f"Beta {beta}")
-        ax_kl_zoom[0].plot(train_kl_q.index, train_kl_q.values, label=f"Beta {beta}")
+        linewidth = 2.5 if beta == 0.001 else 1.2
+        alpha = 1.0 if beta == 0.001 else 0.7
 
-    # Val KL
-    if "val_kl" in df.columns:
-        val_kl_q = df["val_kl"].dropna()
-    elif "val_bkl" in df.columns:
-        val_kl_q = df["val_bkl"].dropna()
-    else:
-        val_kl_q = pd.Series(dtype=float)
+        ax_val[0].plot(recon_smooth.index, recon_smooth.values, label=f"Beta {beta}", linewidth=linewidth, alpha=alpha)
+        ax_val[1].plot(kl_smooth.index, kl_smooth.values, label=f"Beta {beta}", linewidth=linewidth, alpha=alpha)
 
-    if not val_kl_q.empty:
-        val_kl_q = val_kl_q.iloc[1:]
-        ax_kl[1].plot(val_kl_q.index, val_kl_q.values, label=f"Beta {beta}")
-        ax_kl_zoom[1].plot(val_kl_q.index, val_kl_q.values, label=f"Beta {beta}")
+        # 2. Datos para el Pareto (último 10% del entrenamiento)
+        n_tail = max(10, int(len(val_recon) * 0.1))
+        avg_recon = val_recon.tail(n_tail).mean()
+        avg_kl = val_kl.tail(n_tail).mean()
 
-for ax in ax_recon:
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-    ax.set_ylim(bottom=0)
-    # Limitar el top a un valor representativo obviando picos.
-    current_top = ax.get_ylim()[1]
-    ax.set_ylim(top=min(0.01, current_top))
+        pareto_data.append({"beta": beta, "recon": avg_recon, "kl": avg_kl})
 
-for ax in ax_kl:
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-    ax.set_ylim(bottom=0)
-    current_top = ax.get_ylim()[1]
-    ax.set_ylim(top=min(20, current_top))
+# --- Preparar DataFrames para Pareto ---
+pareto_df = pd.DataFrame(pareto_data).sort_values(by="kl")
+pareto_df_lin = pareto_df[pareto_df["beta"] != 0]
 
-for ax in ax_kl_zoom:
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-    ax.set_ylim(bottom=0)
-    current_top = ax.get_ylim()[1]
-    ax.set_ylim(top=min(5.5, current_top))
+# --- 1. Dibujar Gráfico de Pareto (Lineal, sin beta=0) ---
+ax_pareto_lin.plot(
+    pareto_df_lin["kl"], pareto_df_lin["recon"], marker="", linestyle="--", color="gray", alpha=0.5, zorder=1
+)
 
-fig_recon.tight_layout()
-fig_kl.tight_layout()
-fig_kl_zoom.tight_layout()
+for _, row in pareto_df_lin.iterrows():
+    color = "red" if row["beta"] == 0.001 else "blue"
+    size = 100 if row["beta"] == 0.001 else 50
+    ax_pareto_lin.scatter(row["kl"], row["recon"], color=color, s=size, zorder=5)
 
-recon_path = os.path.join(output_dir, "recon_evolution.png")
-kl_path = os.path.join(output_dir, "kl_evolution_0.2.png")
-kl_zoom_path = os.path.join(output_dir, "kl_evolution_0.002.png")
+    label = f"$\\beta$={row['beta']}"
+    if row["beta"] == 0.001:
+        label += "\n(Seleccionado)"
 
-fig_recon.savefig(recon_path)
-fig_kl.savefig(kl_path)
-fig_kl_zoom.savefig(kl_zoom_path)
+    ax_pareto_lin.annotate(
+        label,
+        (row["kl"], row["recon"]),
+        xytext=(10, 5),
+        textcoords="offset points",
+        fontsize=10,
+        fontweight="bold" if row["beta"] == 0.001 else "normal",
+    )
 
-plt.close(fig_recon)
-plt.close(fig_kl)
-plt.close(fig_kl_zoom)
+ax_pareto_lin.set_xlabel("Divergencia KL")
+ax_pareto_lin.set_ylabel("Error de Reconstrucción")
+ax_pareto_lin.grid(True, alpha=0.3)
 
-print(f"¡Gráficos de Beta-VAE generados exitosamente en la carpeta '{output_dir}'!")
+# --- 2. Dibujar Gráfico de Pareto (Logarítmico, con beta=0) ---
+ax_pareto_log.plot(pareto_df["kl"], pareto_df["recon"], marker="", linestyle="--", color="gray", alpha=0.5, zorder=1)
+
+for _, row in pareto_df.iterrows():
+    color = "red" if row["beta"] == 0.001 else "blue"
+    size = 100 if row["beta"] == 0.001 else 50
+    ax_pareto_log.scatter(row["kl"], row["recon"], color=color, s=size, zorder=5)
+
+    label = f"$\\beta$={row['beta']}"
+    if row["beta"] == 0.001:
+        label += "\n(Seleccionado)"
+
+    xytext_offset = (10, 5) if row["beta"] != 0 else (-40, -15)
+
+    ax_pareto_log.annotate(
+        label,
+        (row["kl"], row["recon"]),
+        xytext=xytext_offset,
+        textcoords="offset points",
+        fontsize=10,
+        fontweight="bold" if row["beta"] == 0.001 else "normal",
+    )
+
+ax_pareto_log.set_xscale("log")
+ax_pareto_log.set_xlabel("Divergencia KL (Log Scale)")
+ax_pareto_log.set_ylabel("Error de Reconstrucción")
+ax_pareto_log.grid(True, alpha=0.3, which="both", ls="--")
+
+# --- Ajustes visuales finales para Validación ---
+ax_val[0].legend()
+ax_val[0].grid(True, alpha=0.3)
+ax_val[0].set_ylim(bottom=0.002, top=0.0085)
+
+ax_val[1].legend()
+ax_val[1].grid(True, alpha=0.3)
+ax_val[1].set_ylim(bottom=0, top=6)
+
+fig_val.tight_layout()
+fig_pareto_lin.tight_layout()
+fig_pareto_log.tight_layout()
+
+val_path = os.path.join(output_dir, "validation_smoothed_evolution.png")
+pareto_lin_path = os.path.join(output_dir, "pareto_tradeoff_linear.png")
+pareto_log_path = os.path.join(output_dir, "pareto_tradeoff_log.png")
+
+fig_val.savefig(val_path, dpi=300)
+fig_pareto_lin.savefig(pareto_lin_path, dpi=300)
+fig_pareto_log.savefig(pareto_log_path, dpi=300)
+
+plt.close("all")
+
+print(f"¡Los tres gráficos fueron generados exitosamente en la carpeta '{output_dir}'!")
