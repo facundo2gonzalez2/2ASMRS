@@ -258,33 +258,41 @@ Efectivamente, el salto más significativo se encuentra entre las dimensiones $2
 \includegraphics[scale=0.35]{imgs/01_arquitectura/1_comparacion_por_instrumento.png}
 \end{figure}
 
-\begin{comment}
-    
-\section{Entrenamiento}
+\section{Selección del parámetro $\beta$}
 
-Queremos validar que 
+Definida la dimensión del espacio latente, resta fijar el valor del coeficiente $\beta$ que pondera el término de divergencia KL en la \textit{loss}. Para ello entrenamos el modelo base con cinco valores de $\beta$~---~$0.01$, $0.001$, $0.0001$, $10^{-5}$ y $0$~---~y analizamos cómo varían el error de reconstrucción y la divergencia KL sobre el conjunto de validación. La figura~\ref{fig:beta_evolution} presenta la evolución suavizada de ambas métricas a lo largo del entrenamiento.
 
 \begin{figure}[H]
-\caption{Evolución de error de reconstrucción durante entrenamiento}
+\caption{Evolución suavizada (media móvil) del error de reconstrucción (izquierda) y de la divergencia KL (derecha) sobre validación, para los cinco valores de $\beta$.}
 \centering
-\label{fig:centralidad}
-\includegraphics[scale=0.375]{imgs/02_comparacion_beta_vae/recon_evolution.png}
+\label{fig:beta_evolution}
+\includegraphics[width=\linewidth]{imgs/02_comparacion_beta_vae/validation_smoothed_evolution.png}
 \end{figure}
 
-\begin{figure}[H]
-\caption{Evolución divergencia KL durante entrenamiento}
-\centering
-\label{fig:centralidad}
-\includegraphics[scale=0.375]{imgs/02_comparacion_beta_vae/kl_evolution_0.002.png}
-\end{figure}
+El comportamiento observado responde a la tensión intrínseca del $\beta$-VAE: a medida que $\beta$ disminuye, el error de reconstrucción se reduce, pero la divergencia KL crece~---~es decir, el espacio latente queda menos regularizado~---. Los casos extremos ilustran ambos límites: con $\beta=0.01$ la regularización es tan fuerte que penaliza marcadamente la reconstrucción (error en torno a $0.008$), mientras que con $\beta=0$ la KL crece sin control, dado que ningún término acota la distribución latente. Existe entonces un compromiso entre fidelidad de reconstrucción y regularización del espacio latente que ningún valor optimiza simultáneamente.
+
+Para identificar el mejor balance planteamos este compromiso como una curva de Pareto, ubicando cada modelo según su error de reconstrucción y su divergencia KL promedio en la etapa final del entrenamiento. La figura~\ref{fig:beta_pareto} muestra esta curva en escala lineal~---~excluyendo $\beta=0$ por tener una KL desproporcionadamente alta~---~y en escala logarítmica incluyéndolo.
 
 \begin{figure}[H]
-\caption{Evolución Divergecia KL, Zoom Out:}
-\centering
-\label{fig:centralidad}
-\includegraphics[scale=0.375]{imgs/02_comparacion_beta_vae/kl_evolution_0.2.png}
+\caption{Compromiso entre error de reconstrucción y divergencia KL para los distintos valores de $\beta$.}
+\label{fig:beta_pareto}
+\begin{subfigure}{.5\textwidth}
+    \caption{Escala lineal (excluyendo $\beta=0$).}
+    \centering
+    \label{fig:beta_pareto_lin}
+    \includegraphics[width=\linewidth]{imgs/02_comparacion_beta_vae/pareto_tradeoff_linear.png}
+\end{subfigure}
+\begin{subfigure}{.5\textwidth}
+    \caption{Escala logarítmica (incluyendo $\beta=0$).}
+    \centering
+    \label{fig:beta_pareto_log}
+    \includegraphics[width=\linewidth]{imgs/02_comparacion_beta_vae/pareto_tradeoff_log.png}
+\end{subfigure}
 \end{figure}
-\end{comment}
+
+El valor $\beta=0.001$ se ubica precisamente en el codo de la curva de Pareto: representa el punto a partir del cual seguir reduciendo $\beta$ aporta una mejora marginal en la reconstrucción a costa de un incremento sustancial de la divergencia KL, mientras que aumentarlo hacia $0.01$ degrada la reconstrucción sin un beneficio proporcional en la regularización. En otras palabras, es el valor que mejor equilibra ambos objetivos.
+
+Esta elección numérica fue contrastada además con una evaluación subjetiva: al escuchar los audios reconstruidos por los modelos entrenados con cada $\beta$, los obtenidos con $\beta=0.001$ ofrecen una calidad perceptual comparable a la de los valores más bajos, sin la degradación audible que introduce $\beta=0.01$. En base a este doble criterio~---~cuantitativo y perceptual~---~adoptamos $\beta=0.001$ como configuración del $\beta$-VAE para el resto del trabajo, conservando además la variante $\beta=0$ (AE estándar) como línea de base para las comparaciones posteriores.
 
 \section{Análisis del Espacio Latente}
 
