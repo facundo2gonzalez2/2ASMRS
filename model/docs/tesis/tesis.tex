@@ -52,9 +52,9 @@
 
 \section{Motivación}
 
-El timbre es el atributo perceptual que permite distinguir dos sonidos de igual altura y volumen producidos por fuentes distintas~---~por ejemplo, una misma nota ejecutada en un piano y en una guitarra. La capacidad de generar timbres intermedios entre instrumentos conocidos, comúnmente denominada \emph{morphing} tímbrico, cobra especial relevancia tanto en la producción musical como en el diseño sonoro, dado que permite expandir la paleta acústica más allá de las limitaciones de los instrumentos tradicionales existentes.
+El timbre es el atributo perceptual que permite distinguir dos sonidos de igual altura y volumen producidos por fuentes distintas~---~por ejemplo, una misma nota ejecutada en un piano y en una guitarra. La capacidad de generar timbres intermedios entre instrumentos conocidos, comúnmente denominada \emph{morphing} tímbrico, cobra especial relevancia tanto en la producción musical como en el diseño sonoro, dado que permite expandir la paleta acústica más allá de las limitaciones de los instrumentos acústicos tradicionales.
 
-Con el propósito de proveer herramientas para la síntesis de nuevas sonoridades a partir de timbres familiares, resulta de gran interés explorar el potencial generativo de modelos basados en redes neuronales profundas. En particular, este trabajo se enfoca en investigar la factibilidad y eficacia de realizar procesos de interpolación que operen directamente sobre las características tímbricas de señales disímiles.
+Con el propósito de proveer herramientas para la síntesis de nuevas sonoridades a partir de timbres familiares, resulta de gran interés explorar el potencial generativo de modelos basados en redes neuronales profundas. En particular, este trabajo se enfoca en investigar la factibilidad y eficacia de realizar procesos de interpolación que operen directamente sobre las representaciones tímbricas aprendidas de distintos instrumentos.
 
 
 \section{Antecedentes}
@@ -63,7 +63,7 @@ Los autoencoders variacionales (VAE), introducidos por Kingma y Welling~\cite{ki
 
 En el ámbito de la síntesis y el modelado de audio musical, Roche et al.~\cite{roche2019autoencodersmusicsoundmodeling} realizaron un estudio comparativo de diversas arquitecturas de autoencoders~---incluyendo configuraciones lineales, superficiales, profundas, recurrentes y variacionales---~aplicadas a la representación de espectrogramas de instrumentos musicales. Sus conclusiones demostraron que los modelos variacionales logran el mejor compromiso entre fidelidad de reconstrucción y regularización del espacio latente, sentando un precedente directo para la aplicación de los VAE en el modelado tímbrico.
 
-Posteriormente, orientados al procesamiento en el dominio del audio, Caillon y Esling~\cite{caillon2021rave} demostraron con la arquitectura RAVE que los VAE son capaces de sintetizar audio de alta calidad en tiempo real operando directamente sobre representaciones espectrales. Por su parte, Riera, Eguía y Zabaljáuregui~\cite{riera2017timbre} exploraron la construcción de espacios tímbricos mediante autoencoders dispersos (\textit{sparse autoencoders}), evidenciando que las representaciones aprendidas capturan las relaciones perceptuales entre timbres instrumentales de manera consistente con la percepción humana.
+Posteriormente, orientados al procesamiento en el dominio del audio, Caillon y Esling~\cite{caillon2021rave} demostraron con la arquitectura RAVE que los VAE son capaces de sintetizar audio de alta calidad en tiempo real operando directamente sobre la forma de onda cruda. Por su parte, Riera, Eguía y Zabaljáuregui~\cite{riera2017timbre} exploraron la construcción de espacios tímbricos mediante autoencoders dispersos (\textit{sparse autoencoders}), evidenciando que las representaciones aprendidas capturan las relaciones perceptuales entre timbres instrumentales de manera consistente con la percepción humana.
 
 
 \section{Propuesta}
@@ -234,7 +234,7 @@ Nos interesa también verificar este comportamiento para la arquitectura $\beta$
 
 
 \begin{figure}[H]
-\caption{Error de Reconstrucción promedio general}
+\caption{Error de Reconstrucción (MSE) promedio sobre todos los instrumentos vs. dimensión del espacio latente, con desvío estándar.}
 \centering
 \label{fig:mse_vs_dim_prom}
 \includegraphics[scale=0.45]{imgs/01_arquitectura/2_val_loss_mean_std_with_base.png}
@@ -307,10 +307,12 @@ Para analizar la organización del espacio latente del modelo base, proyectamos 
 \end{subfigure}
 \end{figure}
 
-Para cuantificar la separación entre los \textit{clusters} de cada instrumento computamos las distancias entre sus centroides en la proyección UMAP, sintetizadas en la matriz de la figura~\ref{fig:umap_sep}.
+En ambas configuraciones se observa una separación clara entre los distintos instrumentos, que forman \textit{clusters} diferenciados. La diferencia más notoria es que el modelo con $\beta=0.001$ presenta una nube de puntos visiblemente más suavizada y compacta, consistente con el efecto regularizador que la divergencia KL impone sobre el espacio latente; el modelo con $\beta=0$, en cambio, dispone los \textit{clusters} de forma más dispersa.
+
+Para cuantificar esta separación de manera objetiva utilizamos el estadístico $U$ de Wilcoxon-Mann-Whitney en su versión multidimensional, calculado sobre los vectores latentes de cada par de instrumentos. La métrica se normaliza al intervalo $[0, 1]$, donde un valor cercano a $1$ indica que ambas distribuciones están fuertemente separadas en el espacio latente y un valor cercano a $0.5$ indica solapamiento total. Los resultados se sintetizan en la matriz de la figura~\ref{fig:umap_sep}.
 
 \begin{figure}[H]
-\caption{Matriz de separación entre \textit{clusters} de instrumentos en la proyección UMAP.}
+\caption{Matriz de separación entre instrumentos en el espacio latente del modelo base, medida con el estadístico $U$ de Wilcoxon-Mann-Whitney multidimensional (valores cercanos a $1$ indican mayor separación).}
 \label{fig:umap_sep}
 \begin{subfigure}{.5\textwidth}
     \caption{$\beta = 0.001$.}
@@ -325,6 +327,8 @@ Para cuantificar la separación entre los \textit{clusters} de cada instrumento 
     \includegraphics[width=\linewidth]{imgs/03_umap/base_model_no_beta_instruments_umap_separation_matrix.png}
 \end{subfigure}
 \end{figure}
+
+La matriz confirma cuantitativamente lo que sugiere la visualización: ambos enfoques logran una separación clara entre instrumentos, con valores de $U$ próximos a $1$ en todos los pares. Resulta interesante que el modelo sin regularización ($\beta=0$) alcanza incluso una separación algo mayor~---~con un máximo de $0.926$ para el par bajo-voz~---, lo cual es coherente con un espacio latente más disperso. Sin embargo, esta mayor separación no es necesariamente deseable para nuestro objetivo: un espacio latente menos regularizado tiende a perjudicar las interpolaciones, ya que la falta de suavidad dificulta las transiciones graduales entre instrumentos. Esta hipótesis será puesta a prueba en la sección siguiente.
 
 
 \section{Interpolación}
@@ -407,7 +411,7 @@ Como se observa en la Figura \ref{fig:sim_aggregated}, existe una transferencia 
 
 Al desglosar los resultados (Figuras \ref{fig:sim_aggregated_per_instrument_checkpoint} y \ref{fig:sim_aggregated_per_instrument_scratch}), confirmamos que este patrón es consistente para cualquier instrumento de origen. Queda en evidencia que los modelos sin regularizar (\textit{Scratch-AE}) fracasan en realizar una transición gradual, retrasando el cambio tímbrico hacia los valores extremos de $\alpha$.
 
-TODO: Ahora repetimos este análisis usando cada posible instrumento como destino, y en cada caso los otros 3 instrumentos como origen. Tomamos el promedio y obtuvimos el siguiente gráfico:
+Para descartar que el comportamiento observado sea particular del piano como destino, repetimos el análisis tomando sucesivamente cada instrumento como destino y los tres restantes como origen. Promediando la similitud FAD sobre todas las combinaciones y muestras de $Z$, obtenemos la comparación agregada de la Figura~\ref{fig:sim_aggregated_all_instruments}.
 
 \begin{figure}[H]
 \caption{Comparación agregada entre configuraciones, interpolando desde múltiples instrumentos hacia todos los instrumentos.}
@@ -416,7 +420,7 @@ TODO: Ahora repetimos este análisis usando cada posible instrumento como destin
 \includegraphics[scale=0.5]{imgs/04_similitud/sim_aggregated_to_all_instruments.png}
 \end{figure}
 
-TODO: Análisis: se observa claramente a lo largo de los diferentes samples y las diferentes combinaciones de instrumentos de origen y destino que la mejor configuración es la checkpoint beta. Luego, tanto agregar sólo beta como agregar sólo checkpoint genera una mejora en la similitud en comparación con el peor enfoque que es scratch no beta. Esto es consistente a lo largo de todas las pruebas de combinaciones de instrumentos como origen/destino.
+El patrón se mantiene de forma consistente a lo largo de todas las combinaciones de instrumentos de origen y destino: la configuración \textit{Checkpoint-$\beta$-VAE} es sistemáticamente la de mejor desempeño. Tanto incorporar únicamente la regularización ($\beta>0$) como partir de un \textit{checkpoint} común mejoran la similitud respecto del peor caso (\textit{Scratch-AE}), lo que confirma que ambos factores contribuyen de manera independiente a la calidad de la interpolación, siendo la regularización del espacio latente el de mayor impacto.
 
 
 
@@ -428,7 +432,7 @@ Se espera que, a medida que $\alpha$ crezca, la similitud con el instrumento B a
 \caption{Transición cruzada de piano a guitarra. Comparación entre orígenes (\textit{Checkpoint} vs. \textit{Scratch}) y regularización ($\beta$). La voz actúa como instrumento testigo.}
 \centering
 \label{fig:transicion_piano_guitarra}
-\includegraphics[scale=0.5]{imgs/plots/fad_random_latent_gaussian_piano_to_guitar.png}
+\includegraphics[scale=0.5]{imgs/04_similitud/fad_random_latent_gaussian_piano_to_guitar.png}
 \end{figure}
 
 Los resultados presentados en la Figura \ref{fig:transicion_piano_guitarra} corroboran nuestra hipótesis para la configuración \textit{Checkpoint-$\beta$-VAE}. Se observa que la similitud con el piano decrece de manera consistente mientras la similitud con la guitarra aumenta, ocurriendo el punto de cruce alrededor de $\alpha=0.5$, todo esto mientras la voz (instrumento testigo) se mantiene constante.
