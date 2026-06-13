@@ -40,7 +40,7 @@ fig_pareto_lin.suptitle(
     "Trade-off: Error vs Divergencia KL\n(Escala Lineal, excluyendo $\\beta=0$)", fontsize=16, fontweight="bold"
 )
 fig_pareto_log.suptitle(
-    "Trade-off: Error vs Divergencia KL\n(Escala Logarítmica, incluyendo $\\beta=0$)", fontsize=16, fontweight="bold"
+    "Trade-off: Error vs Divergencia KL\n(Escala Log-Log, incluyendo $\\beta=0$)", fontsize=16, fontweight="bold"
 )
 
 ax_val[0].set_title("Validation Reconstruction Error")
@@ -70,8 +70,8 @@ for dir_name, beta in beta_dirs.items():
         recon_smooth = val_recon.rolling(window=window_size, min_periods=1).mean()
         kl_smooth = val_kl.rolling(window=window_size, min_periods=1).mean()
 
-        linewidth = 2.5 if beta == 0.001 else 1.2
-        alpha = 1.0 if beta == 0.001 else 0.7
+        linewidth = 1.2
+        alpha = 0.7
 
         ax_val[0].plot(recon_smooth.index, recon_smooth.values, label=f"Beta {beta}", linewidth=linewidth, alpha=alpha)
         ax_val[1].plot(kl_smooth.index, kl_smooth.values, label=f"Beta {beta}", linewidth=linewidth, alpha=alpha)
@@ -93,13 +93,11 @@ ax_pareto_lin.plot(
 )
 
 for _, row in pareto_df_lin.iterrows():
-    color = "red" if row["beta"] == 0.001 else "blue"
-    size = 100 if row["beta"] == 0.001 else 50
+    color = "blue"
+    size = 50
     ax_pareto_lin.scatter(row["kl"], row["recon"], color=color, s=size, zorder=5)
 
     label = f"$\\beta$={row['beta']}"
-    if row["beta"] == 0.001:
-        label += "\n(Seleccionado)"
 
     ax_pareto_lin.annotate(
         label,
@@ -107,7 +105,7 @@ for _, row in pareto_df_lin.iterrows():
         xytext=(10, 5),
         textcoords="offset points",
         fontsize=10,
-        fontweight="bold" if row["beta"] == 0.001 else "normal",
+        fontweight="normal",
     )
 
 ax_pareto_lin.set_xlabel("Divergencia KL")
@@ -118,13 +116,11 @@ ax_pareto_lin.grid(True, alpha=0.3)
 ax_pareto_log.plot(pareto_df["kl"], pareto_df["recon"], marker="", linestyle="--", color="gray", alpha=0.5, zorder=1)
 
 for _, row in pareto_df.iterrows():
-    color = "red" if row["beta"] == 0.001 else "blue"
-    size = 100 if row["beta"] == 0.001 else 50
+    color = "blue"
+    size = 50
     ax_pareto_log.scatter(row["kl"], row["recon"], color=color, s=size, zorder=5)
 
     label = f"$\\beta$={row['beta']}"
-    if row["beta"] == 0.001:
-        label += "\n(Seleccionado)"
 
     xytext_offset = (10, 5) if row["beta"] != 0 else (-40, -15)
 
@@ -134,12 +130,13 @@ for _, row in pareto_df.iterrows():
         xytext=xytext_offset,
         textcoords="offset points",
         fontsize=10,
-        fontweight="bold" if row["beta"] == 0.001 else "normal",
+        fontweight="normal",
     )
 
 ax_pareto_log.set_xscale("log")
+ax_pareto_log.set_yscale("log")
 ax_pareto_log.set_xlabel("Divergencia KL (Log Scale)")
-ax_pareto_log.set_ylabel("Error de Reconstrucción")
+ax_pareto_log.set_ylabel("Error de Reconstrucción (Log Scale)")
 ax_pareto_log.grid(True, alpha=0.3, which="both", ls="--")
 
 # --- Ajustes visuales finales para Validación ---
@@ -157,7 +154,7 @@ fig_pareto_log.tight_layout()
 
 val_path = os.path.join(output_dir, "validation_smoothed_evolution.png")
 pareto_lin_path = os.path.join(output_dir, "pareto_tradeoff_linear.png")
-pareto_log_path = os.path.join(output_dir, "pareto_tradeoff_log.png")
+pareto_log_path = os.path.join(output_dir, "pareto_tradeoff_loglog.png")
 
 fig_val.savefig(val_path, dpi=300)
 fig_pareto_lin.savefig(pareto_lin_path, dpi=300)
