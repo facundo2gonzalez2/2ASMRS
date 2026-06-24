@@ -52,7 +52,7 @@
 
 \section{Motivación}
 
-El timbre es el atributo perceptual que permite distinguir dos sonidos de igual altura y volumen producidos por fuentes distintas~---~por ejemplo, una misma nota ejecutada en un piano y en una guitarra. La capacidad de generar timbres intermedios entre instrumentos conocidos, comúnmente denominada \emph{morphing} tímbrico, cobra especial relevancia tanto en la producción musical como en el diseño sonoro, dado que permite expandir la paleta acústica más allá de las limitaciones de los instrumentos tradicionales existentes.
+El timbre es el atributo perceptual que permite distinguir dos sonidos de igual altura y volumen producidos por fuentes distintas, por ejemplo una misma nota ejecutada en un piano y en una guitarra. La capacidad de generar timbres intermedios entre instrumentos conocidos, comúnmente denominada \emph{morphing} tímbrico, cobra especial relevancia tanto en la producción musical como en el diseño sonoro, dado que permite expandir la paleta sonora más allá de las limitaciones de los instrumentos tradicionales.
 
 Con el propósito de proveer herramientas para la síntesis de nuevas sonoridades a partir de timbres familiares, resulta de gran interés explorar el potencial generativo de modelos basados en redes neuronales profundas. En particular, este trabajo se enfoca en investigar la factibilidad y eficacia de realizar procesos de interpolación que operen directamente sobre las características tímbricas de señales disímiles.
 
@@ -61,41 +61,28 @@ Con el propósito de proveer herramientas para la síntesis de nuevas sonoridade
 
 Los autoencoders variacionales (VAE), introducidos por Kingma y Welling~\cite{kingma2013auto}, constituyen un marco generativo consolidado que aprende representaciones latentes continuas a partir de los datos de entrada. A diferencia de los autoencoders clásicos, el enfoque variacional impone una distribución probabilística sobre el espacio latente mediante la divergencia de Kullback-Leibler (KL). Esto no solo facilita la generación de nuevas muestras, sino que además habilita la interpolación entre ellas. Higgins et al.~\cite{higgins2017beta} propusieron el $\beta$-VAE, una variante que pondera el término de la divergencia KL mediante un hiperparámetro $\beta$. Este factor permite regular el balance entre la calidad de la reconstrucción y la regularización del espacio latente, favoreciendo la emergencia de representaciones más estructuradas cuando $\beta > 0$.
 
-En el ámbito de la síntesis y el modelado de audio musical, Roche et al.~\cite{roche2019autoencodersmusicsoundmodeling} realizaron un estudio comparativo de diversas arquitecturas de autoencoders~---incluyendo configuraciones lineales, superficiales, profundas, recurrentes y variacionales---~aplicadas a la representación de espectrogramas de instrumentos musicales. Sus conclusiones demostraron que los modelos variacionales logran el mejor compromiso entre fidelidad de reconstrucción y regularización del espacio latente, sentando un precedente directo para la aplicación de los VAE en el modelado tímbrico.
+En el ámbito de la síntesis y el modelado de audio musical, Roche et al.~\cite{roche2019autoencodersmusicsoundmodeling} realizaron un estudio comparativo de diversas arquitecturas de autoencoders incluyendo configuraciones lineales, superficiales, profundas, recurrentes y variacionales, aplicadas a la representación de espectrogramas de instrumentos musicales. Sus conclusiones demostraron que los modelos variacionales logran el mejor compromiso entre fidelidad de reconstrucción y regularización del espacio latente, sentando un precedente directo para la aplicación de los VAE en el modelado tímbrico.
 
 Posteriormente, orientados al procesamiento en el dominio del audio, Caillon y Esling~\cite{caillon2021rave} demostraron con la arquitectura RAVE que los VAE son capaces de sintetizar audio de alta calidad en tiempo real operando directamente sobre representaciones espectrales. Por su parte, Riera, Eguía y Zabaljáuregui~\cite{riera2017timbre} exploraron la construcción de espacios tímbricos mediante autoencoders dispersos (\textit{sparse autoencoders}), evidenciando que las representaciones aprendidas capturan las relaciones perceptuales entre timbres instrumentales de manera consistente con la percepción humana.
 
 
 \section{Propuesta}
 
-Si bien los antecedentes reseñados demuestran la utilidad de los modelos generativos para representar el timbre, la síntesis de sonoridades intermedias entre instrumentos específicos permanece como un problema abierto. Las técnicas convencionales de interpolación suelen operar dentro del espacio latente de un único modelo entrenado conjuntamente sobre múltiples instrumentos, una estrategia que frecuentemente limita la fidelidad y el detalle de cada timbre individual. 
+Si bien los antecedentes reseñados demuestran la utilidad de los modelos generativos para representar el timbre, la síntesis de sonoridades intermedias entre instrumentos específicos permanece como un problema abierto. Las técnicas convencionales de interpolación suelen operar dentro del espacio latente de un único modelo entrenado conjuntamente sobre múltiples instrumentos, una estrategia que frecuentemente limita la fidelidad y el detalle de cada timbre individual.
 
-En este trabajo proponemos un enfoque alternativo: entrenar modelos VAE especializados de forma independiente para cada instrumento y, posteriormente, realizar una interpolación en el espacio de sus pesos o parámetros. De este modo, se generan modelos intermedios cuyos \textit{decoders} producen timbres híbridos. Esta estrategia opera directamente sobre la parametrización del modelo en lugar de hacerlo sobre el espacio latente, buscando preservar la capacidad reconstructiva y la riqueza espectral de cada modelo especializado.
+En este trabajo proponemos un enfoque alternativo: entrenar modelos VAE especializados de forma independiente para cada instrumento y, posteriormente, realizar una interpolación en el espacio de sus pesos. De este modo, se generan modelos intermedios cuyos \textit{decoders} producen timbres híbridos. Esta estrategia opera directamente sobre la parametrización del modelo en lugar de hacerlo sobre el espacio latente, buscando preservar la capacidad reconstructiva y la riqueza espectral de cada modelo especializado.
 
 El sistema propuesto trabaja con espectrogramas de magnitud obtenidos mediante la Transformada de Fourier de Tiempo Corto (STFT). Estas representaciones son proyectadas por el \textit{encoder} del VAE hacia un espacio latente de baja dimensionalidad (típicamente de 4 dimensiones) y luego reconstruidas por el \textit{decoder}. Para evaluar cuantitativamente la calidad de las interpolaciones resultantes, se utiliza la métrica Fréchet Audio Distance (FAD)~\cite{gui2024adaptingfrechetaudiodistance} combinada con \textit{embeddings} extraídos del modelo MERT. Esto permite medir con rigor la distancia perceptual entre las distribuciones del audio generado y el de referencia.
-
-\begin{comment}
-\section{Objetivos}
-% General: sistema de morphing tímbrico basado en β-VAE por interpolación
-% de pesos. Específicos: entrenamiento en dos etapas, SLERP/LERP, métricas
-% (FAD, coseno, MSE), análisis del espacio latente (UMAP), app interactiva.
-
-\section{Organización del trabajo}
-\end{comment}
-
 
 % Capítulo 2: metodología; Capítulo 3: experimentación; Capítulo 4: conclusión.
 \chapter{Metodología}
 \label{cap:metodologia}
 
 \section{Dataset}
-% Datasets por instrumento: GuitarSet~\cite{xi2019guitarset},
-% VocalSet~\cite{wilkins2018vocalset}, FiloBass~\cite{riley2023filobass},
-% piano libre de derechos. STFT 2048/512 @ 22050 Hz → dB → clip -60 dB → norm [0,1].
 
 Como parte fundamental de este trabajo, necesitamos definir el dataset con el que vamos a entrenar y luego validar los modelos. Para eso primero definimos el conjunto de instrumentos en los que vamos a trabajar: Piano, Guitarra, Bajo y Voz.
 
-Para el caso de piano, se armó un dataset basado en interpretaciones de piezas de música clásica libres de derecho extraídas de internet.
+Para el caso del piano, se armó un dataset basado en interpretaciones de piezas de música clásica libres de derechos extraídas de internet.
 
 En la guitarra se utilizó una sección del dataset GuitarSet \cite{xi2019guitarset}, especializado en los fragmentos sólo de guitarra eléctrica, variando entre fragmentos solo mélodicos y armónicos (rasgueos, acordes, etc.).
 
@@ -207,15 +194,13 @@ Para cada instrumento se recolectó un total de 87 minutos aproximadamente, lo q
 % FAD con embeddings MERT-v1-95M; similitud coseno; MSE de reconstrucción;
 % UMAP del espacio latente; U de Wilcoxon-Mann-Whitney multidimensional.
 
-\section{Aplicación interactiva}
-% Streamlit: selección de instrumentos, slider α, sliders Z, síntesis en
-% tiempo real vía decoder del modelo interpolado.
-
 
 \chapter{Experimentación y resultados}
 \label{cap:experimentacion}
 
-\section{Arquitectura del modelo y Experimentación $\beta$-VAE}
+\section{Exploración de Arquitecturas}
+
+\subsection{Tamaño del espacio latente}
 
 Uno de los aspectos clave a definir en la arquitectura de los modelos es el tamaño del espacio latente. Como cabe esperar, a mayor dimensión del espacio latente menor es el error de reconstrucción; sin embargo, para el uso práctico de estos modelos resulta deseable mantener un tamaño acotado, de modo que las representaciones sean fáciles de manipular. Si pensamos en una implementación basada en perillas para modificar el espacio latente, contar con $4$ perillas resulta coherente, mientras que tener $32$ puede resultar poco intuitivo.
 
@@ -230,34 +215,7 @@ Con el objetivo de encontrar el tamaño ideal, experimentamos con dimensiones $2
 
 Analizando los resultados de las figuras~\ref{fig:mse_vs_dim} y~\ref{fig:mse_vs_dim_prom} observamos que, con un espacio latente de dimensión $4$, obtenemos una ganancia significativa respecto a las dimensiones $2$ y $3$, mientras que aumentar el tamaño a $6$ u $8$ no aporta una mejora relevante.
 
-
-Con el fin de regularizar el espacio latente sin degradar excesivamente la calidad de la reconstrucción, buscamos determinar un valor adecuado para el hiperparámetro $\beta$. Para ello, realizamos un barrido experimental evaluando cinco valores distintos: $\beta \in [0, 10^{-5}, 10^{-4}, 10^{-3}, 10^{-2}]$. Para cada uno de ellos, se calculó el promedio del error de reconstrucción (MSE) y de la divergencia KL sobre el último $10\%$ del entrenamiento. A partir de estos resultados, construimos las curvas de Pareto expuestas en la figura~\ref{fig:pareto}.
-
-\begin{figure}[H]
-\caption{Frontera de Pareto para la selección del hiperparámetro $\beta$.}
-\label{fig:pareto}
-\begin{subfigure}{.5\textwidth}
-    \caption{Escala lineal (excluyendo $\beta=0$).}
-    \centering
-    \label{fig:pareto-lineal}
-    \includegraphics[width=\linewidth]{imgs/02_comparacion_beta_vae/pareto_tradeoff_linear.png}
-\end{subfigure}
-\begin{subfigure}{.5\textwidth}
-    \caption{Escala Log-Log (incluyendo $\beta=0$).}
-    \centering
-    \label{fig:pareto-loglog}
-    \includegraphics[width=\linewidth]{imgs/02_comparacion_beta_vae/pareto_tradeoff_loglog.png}
-\end{subfigure}
-\end{figure}
-
-La comparación entre ambas representaciones resulta de especial utilidad para analizar el impacto de desactivar la regularización ($\beta=0$). En la figura~\ref{fig:pareto-lineal}, la visualización en escala lineal obligó a excluir el caso $\beta=0$ debido a que la divergencia KL en este escenario alcanza valores sumamente elevados que distorsionan la escala del eje, agrupando al resto de los puntos contra el eje de ordenadas. Sin embargo, al aplicar una escala Log-Log en ambos ejes (figura~\ref{fig:pareto-loglog}), logramos incorporar este caso límite y visualizar en un mismo plano magnitudes que difieren en varios órdenes de escala. 
-
-A partir de este análisis de Pareto, se observa claramente que $\beta=0.001$ se sitúa en el " codo" de la curva, representando el mejor punto de compromiso (\textit{trade-off}) del sistema. Por un lado, aumentar la regularización a $\beta=0.01$ penaliza excesivamente la fidelidad del modelo, incrementando notablemente el error de reconstrucción. Por el otro, relajar la regularización a $\beta=0.0001$ o $\beta=0.00001$ genera un incremento desmedido en la divergencia KL, aproximándose al comportamiento desregulado de un autoencoder tradicional ($\beta=0$) sin aportar una mejora sustancial en el error de reconstrucción. Este análisis cuantitativo se complementó con escuchas subjetivas de las reconstrucciones obtenidas con $\beta=0.001$, confirmando que el nivel de error alcanzado bajo esta configuración permite reproducir los audios de entrenamiento de forma prácticamente indistinguible respecto a los resultados del caso $\beta=0$.
-
-TODO: conectar bien estas partes, el parrafo que sigue venia conectado con la parte anterior del analisis de qué beta elegir
-
-Nos interesa también verificar este comportamiento para la arquitectura $\beta$-VAE, donde esperamos observar un error de reconstrucción mayor en magnitud---ya que la \textit{loss} de estos modelos incorpora también la divergencia KL---pero con la misma tendencia.
-
+Nos interesa también verificar este comportamiento para la arquitectura $\beta$-VAE, donde esperamos observar un error de reconstrucción mayor en magnitud ya que la \textit{loss} de estos modelos incorpora también la divergencia KL pero con la misma tendencia.
 
 \begin{figure}[H]
 \caption{Error de Reconstrucción promedio general}
@@ -284,33 +242,30 @@ Efectivamente, el salto más significativo se encuentra entre las dimensiones $2
 \includegraphics[scale=0.35]{imgs/01_arquitectura/1_comparacion_por_instrumento.png}
 \end{figure}
 
-\begin{comment}
-    
-\section{Entrenamiento}
+\subsection{Experimentación $\beta$-VAE}
 
-Queremos validar que 
+Definido el tamaño del espacio latente, resta fijar el grado de regularización del mismo. Con el fin de regularizar el espacio latente sin degradar excesivamente la calidad de la reconstrucción, buscamos determinar un valor adecuado para el hiperparámetro $\beta$. Para ello, realizamos un barrido experimental evaluando cinco valores distintos: $\beta \in [0, 10^{-5}, 10^{-4}, 10^{-3}, 10^{-2}]$. Para cada uno de ellos, se calculó el promedio del error de reconstrucción (MSE) y de la divergencia KL sobre el último $10\%$ del entrenamiento. A partir de estos resultados, construimos las curvas de Pareto expuestas en la figura~\ref{fig:pareto}.
 
 \begin{figure}[H]
-\caption{Evolución de error de reconstrucción durante entrenamiento}
-\centering
-\label{fig:centralidad}
-\includegraphics[scale=0.375]{imgs/02_comparacion_beta_vae/recon_evolution.png}
+\caption{Frontera de Pareto para la selección del hiperparámetro $\beta$.}
+\label{fig:pareto}
+\begin{subfigure}{.5\textwidth}
+    \caption{Escala lineal (excluyendo $\beta=0$).}
+    \centering
+    \label{fig:pareto-lineal}
+    \includegraphics[width=\linewidth]{imgs/02_comparacion_beta_vae/pareto_tradeoff_linear.png}
+\end{subfigure}
+\begin{subfigure}{.5\textwidth}
+    \caption{Escala Logarítmica en ambos ejes (incluyendo $\beta=0$).}
+    \centering
+    \label{fig:pareto-loglog}
+    \includegraphics[width=\linewidth]{imgs/02_comparacion_beta_vae/pareto_tradeoff_loglog.png}
+\end{subfigure}
 \end{figure}
 
-\begin{figure}[H]
-\caption{Evolución divergencia KL durante entrenamiento}
-\centering
-\label{fig:centralidad}
-\includegraphics[scale=0.375]{imgs/02_comparacion_beta_vae/kl_evolution_0.002.png}
-\end{figure}
+La comparación entre ambas representaciones resulta de especial utilidad para analizar el impacto de desactivar la regularización ($\beta=0$). En la figura~\ref{fig:pareto-lineal}, la visualización en escala lineal obligó a excluir el caso $\beta=0$ debido a que la divergencia KL en este escenario alcanza valores sumamente elevados que distorsionan la escala del eje, agrupando al resto de los puntos contra el eje de ordenadas. Sin embargo, al aplicar una escala Log-Log en ambos ejes (figura~\ref{fig:pareto-loglog}), logramos incorporar este caso límite y visualizar en un mismo plano magnitudes que difieren en varios órdenes de escala.
 
-\begin{figure}[H]
-\caption{Evolución Divergecia KL, Zoom Out:}
-\centering
-\label{fig:centralidad}
-\includegraphics[scale=0.375]{imgs/02_comparacion_beta_vae/kl_evolution_0.2.png}
-\end{figure}
-\end{comment}
+A partir de este análisis de Pareto, se observa claramente que $\beta=0.001$ se sitúa en el "codo" de la curva, representando el mejor punto de compromiso (\textit{trade-off}) del sistema. Por un lado, aumentar la regularización a $\beta=0.01$ penaliza excesivamente la fidelidad del modelo, incrementando notablemente el error de reconstrucción. Por el otro, relajar la regularización a $\beta=0.0001$ o $\beta=0.00001$ genera un incremento desmedido en la divergencia KL, aproximándose al comportamiento desregulado de un autoencoder tradicional ($\beta=0$) sin aportar una mejora sustancial en el error de reconstrucción. Este análisis cuantitativo se complementó con escuchas subjetivas de las reconstrucciones obtenidas con $\beta=0.001$, confirmando que el nivel de error alcanzado bajo esta configuración permite reproducir los audios de entrenamiento de forma prácticamente indistinguible respecto a los resultados del caso $\beta=0$.
 
 \section{Análisis del Espacio Latente}
 
@@ -353,7 +308,7 @@ Para cuantificar la separación entre los \textit{clusters} de cada instrumento 
 \end{figure}
 
 
-\section{Interpolación}
+\section{Interpolación de parámetros}
 
 Esta sección se centra en la interpolación de pesos entre dos modelos especializados en instrumentos distintos. Tal como se definió en la sección de metodología, generaremos un modelo intermedio en función de tres parámetros: un modelo origen A, un modelo destino B y un coeficiente de interpolación $\alpha \in [0, 1]$. De este modo, con $\alpha=0$ obtenemos exactamente el modelo A, y con $\alpha=1$ obtenemos el modelo B. 
 
@@ -433,7 +388,7 @@ Como se observa en la Figura \ref{fig:sim_aggregated}, existe una transferencia 
 
 Al desglosar los resultados (Figuras \ref{fig:sim_aggregated_per_instrument_checkpoint} y \ref{fig:sim_aggregated_per_instrument_scratch}), confirmamos que este patrón es consistente para cualquier instrumento de origen. Queda en evidencia que los modelos sin regularizar (\textit{Scratch-AE}) fracasan en realizar una transición gradual, retrasando el cambio tímbrico hacia los valores extremos de $\alpha$.
 
-TODO: Ahora repetimos este análisis usando cada posible instrumento como destino, y en cada caso los otros 3 instrumentos como origen. Tomamos el promedio y obtuvimos el siguiente gráfico:
+Hasta aquí fijamos el piano como único instrumento de destino. Para descartar que el comportamiento observado dependa de esa elección, repetimos el análisis tomando cada instrumento como destino y, en cada caso, los tres instrumentos restantes como origen. Promediando sobre todas estas combinaciones obtenemos la comparación de la figura~\ref{fig:sim_aggregated_all_instruments}.
 
 \begin{figure}[H]
 \caption{Comparación agregada entre configuraciones, interpolando desde múltiples instrumentos hacia todos los instrumentos.}
@@ -442,9 +397,7 @@ TODO: Ahora repetimos este análisis usando cada posible instrumento como destin
 \includegraphics[scale=0.5]{imgs/04_similitud/sim_aggregated_to_all_instruments.png}
 \end{figure}
 
-TODO: Análisis: se observa claramente a lo largo de los diferentes samples y las diferentes combinaciones de instrumentos de origen y destino que la mejor configuración es la checkpoint beta. Luego, tanto agregar sólo beta como agregar sólo checkpoint genera una mejora en la similitud en comparación con el peor enfoque que es scratch no beta. Esto es consistente a lo largo de todas las pruebas de combinaciones de instrumentos como origen/destino.
-
-
+El resultado confirma el patrón ya observado: a lo largo de las distintas muestras y de todas las combinaciones de instrumentos de origen y destino, la mejor configuración sigue siendo \textit{Checkpoint-$\beta$-VAE}. Tanto incorporar únicamente la regularización ($\beta$) como partir únicamente de un \textit{checkpoint} común mejoran la similitud respecto del peor enfoque, \textit{Scratch-AE}. Esta tendencia se mantiene de forma consistente con independencia del par origen/destino considerado, lo que indica que las conclusiones anteriores no son un artefacto de haber fijado el piano como destino.
 
 Para dar el análisis por concluido, resta verificar una última condición: a medida que el audio sintetizado se aproxima tímbricamente al instrumento B, debe necesariamente alejarse de las características del instrumento A, y, fundamentalmente, no debe adoptar rasgos de otros instrumentos ajenos a la interpolación (un instrumento \textit{testigo}).
 

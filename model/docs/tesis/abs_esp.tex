@@ -4,10 +4,10 @@
 %\vspace{1cm}
 \chapter*{\runtitulo}
 
-\noindent El \emph{morphing tímbrico}~---~la generación de timbres intermedios
-entre instrumentos conocidos~--- es una herramienta de interés para la producción
+\noindent El \emph{morphing tímbrico}, la generación de timbres intermedios
+entre instrumentos conocidos, es una herramienta de interés para la producción
 musical y el diseño sonoro, ya que permite expandir la paleta sonora más allá
-de los instrumentos acústicos existentes. Las técnicas usuales operan en el
+de los instrumentos tradicionales. Las técnicas usuales operan en el
 espacio latente de un único modelo generativo entrenado sobre múltiples
 instrumentos, lo que limita la fidelidad de cada timbre individual.
 
@@ -16,18 +16,10 @@ variacionales ($\beta$-VAE) especializados por instrumento a partir de un
 modelo base común, y generar timbres híbridos mediante la interpolación
 de los pesos de esos modelos. 
 
-% La interpolación se realiza con SLERP sobre
-% los parámetros del modelo, con \emph{fallback} a LERP, operando así en el
-% espacio de parámetros en lugar del espacio latente y preservando la capacidad
-% reconstructiva de cada modelo especializado.
-
 El sistema se entrena sobre espectrogramas de magnitud obtenidos por STFT
 de cuatro instrumentos (piano, guitarra, voz y bajo) y se evalúa mediante
 Fréchet Audio Distance (FAD), similitud coseno sobre \emph{embeddings} MERT,
 análisis del espacio latente con UMAP y error de reconstrucción. 
-
-% Los modelos entrenados se integran en una aplicación interactiva en Streamlit que permite
-% explorar el espacio de timbres interpolados en tiempo real.
 
 \bigskip
 
