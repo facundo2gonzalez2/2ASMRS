@@ -73,12 +73,14 @@ def _autogain(audio, target_peak=0.9):
 
 def main():
     # ── Config ──────────────────────────────────────────
-    instrument_a = "piano"
+    instrument_a = "voice"
     instrument_b = "guitar"
-    audio_a = "data_audio_morphing/piano_new2_trimmed.wav"
-    audio_b = "data_audio_morphing/guitar_new2_trimmed.wav"
+    # audio_a = "data_audio_morphing/voz_new2_trimmed.wav"
+    # audio_b = "data_audio_morphing/piano_new2_trimmed.wav"
+    audio_a = None
+    audio_b = None
     duration_a = 2  # seconds
-    duration_transition = 5
+    duration_transition = 8
     duration_b = 2
     source = "checkpoint"  # "checkpoint" or "scratch"
     beta = "beta_0.001"  # "beta_0.001" or "no_beta"
