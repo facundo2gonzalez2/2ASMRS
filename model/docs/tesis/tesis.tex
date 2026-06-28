@@ -45,7 +45,6 @@
 \mainmatter
 \pagestyle{headings}
 
-%%%% ACA VA EL CONTENIDO DE LA TESIS
 
 \chapter{Introducción}
 \label{cap:introduccion}
@@ -74,28 +73,46 @@ En este trabajo proponemos un enfoque alternativo: entrenar modelos VAE especial
 
 El sistema propuesto trabaja con espectrogramas de magnitud obtenidos mediante la Transformada de Fourier de Tiempo Corto (STFT). Estas representaciones son proyectadas por el \textit{encoder} del VAE hacia un espacio latente de baja dimensionalidad (típicamente de 4 dimensiones) y luego reconstruidas por el \textit{decoder}. Para evaluar cuantitativamente la calidad de las interpolaciones resultantes, se utiliza la métrica Fréchet Audio Distance (FAD)~\cite{gui2024adaptingfrechetaudiodistance} combinada con \textit{embeddings} extraídos del modelo MERT. Esto permite medir con rigor la distancia perceptual entre las distribuciones del audio generado y el de referencia.
 
-% Capítulo 2: metodología; Capítulo 3: experimentación; Capítulo 4: conclusión.
 \chapter{Metodología}
 \label{cap:metodologia}
 
 \section{Dataset}
 
-Como parte fundamental de este trabajo, necesitamos definir el dataset con el que vamos a entrenar y luego validar los modelos. Para eso primero definimos el conjunto de instrumentos en los que vamos a trabajar: Piano, Guitarra, Bajo y Voz.
+Un componente fundamental de este trabajo es la construcción del conjunto de datos con el que entrenamos y validamos los modelos. Optamos por trabajar con cuatro instrumentos, piano, guitarra, bajo y voz, elegidos por abarcar familias tímbricas marcadamente distintas: un instrumento de cuerda percutida (piano), uno de cuerda pulsada (guitarra), uno orientado al registro grave (bajo) y la voz humana. Esta diversidad resulta deseable para evaluar el \emph{morphing} tímbrico sobre timbres claramente diferenciables entre sí.
 
-Para el caso del piano, se armó un dataset basado en interpretaciones de piezas de música clásica libres de derechos extraídas de internet.
+Para reunir el material de cada instrumento recurrimos a grabaciones reales provenientes de distintas fuentes:
 
-En la guitarra se utilizó una sección del dataset GuitarSet \cite{xi2019guitarset}, especializado en los fragmentos sólo de guitarra eléctrica, variando entre fragmentos solo mélodicos y armónicos (rasgueos, acordes, etc.).
+\begin{itemize}
+    \item \textbf{Piano}: armamos un conjunto a partir de interpretaciones de piezas de música clásica de dominio público obtenidas de internet.
+    \item \textbf{Guitarra}: utilizamos una sección del dataset GuitarSet~\cite{xi2019guitarset}, restringida a fragmentos de guitarra eléctrica que combinan pasajes melódicos y armónicos (rasgueos, acordes, etc.).
+    \item \textbf{Bajo}: extrajimos del dataset FiloBass~\cite{riley2023filobass} líneas de bajo y contrabajo de \textit{standards} de jazz conocidos.
+    \item \textbf{Voz}: aprovechamos el dataset VocalSet~\cite{wilkins2018vocalset}, que ofrece abundante material vocal con distintas voces, escalas y melodías. Seleccionamos un subconjunto representativo de cuatro voces (dos masculinas y dos femeninas) que incluye melodías, escalas y arpegios.
+\end{itemize}
 
-Para el bajo, se extrajo del dataset FiloBass \cite{riley2023filobass} líneas de bajo y contra bajo de canciones conocidas (standards) de jazz.
+Para cada instrumento recolectamos aproximadamente 87 minutos de audio, lo que totaliza alrededor de 5,8 horas de grabaciones. Mantener una duración equilibrada entre instrumentos evita sesgar el entrenamiento hacia alguno de ellos en particular. Este volumen resulta suficiente para la tarea de entrenamiento y validación propuesta y, al mismo tiempo, mantiene el entrenamiento reproducible sin requerir un costo computacional elevado.
 
-Para la voz se aprovechó el dataset VocalSet \cite{wilkins2018vocalset} el cual provee mucho material de diferentes voces, escalas, melodías, etc. Se seleccionó un conjunto representativo que incluye 4 voces diferentes (2 hombre, 2 mujer) y pistas que representan melodías, escalas, arpegios.
+\section{Representación y preprocesamiento del audio}
 
-Para cada instrumento se recolectó un total de 87 minutos aproximadamente, lo que conforma un dataset suficiente para completar la tarea de entrenamiento y validación propuesta, y logra que el entrenamiento sea reproducible sin una necesidad de cómputo muy costosa.
+Las redes neuronales que componen el sistema no operan directamente sobre la forma de onda, sino sobre una representación en el dominio tiempo-frecuencia de la señal. Por ese motivo, antes del entrenamiento cada archivo de audio atraviesa una etapa de preprocesamiento común que describimos a continuación.
+
+En primer lugar, todas las pistas se convierten a un único canal (monofónico) y se remuestrean a una frecuencia de muestreo de $22050$ Hz, de modo de unificar el formato de entrada con independencia de la fuente original.
+
+Sobre la señal resultante aplicamos la Transformada de Fourier de Tiempo Corto (STFT), utilizando una ventana de Hann de $2048$ muestras (\textit{win length}) y un salto de $512$ muestras (\textit{hop length}) entre ventanas consecutivas. La STFT produce, para cada instante de análisis (\textit{frame}), un espectro complejo del cual conservamos por separado la magnitud y la fase.
+
+Dado que la información tímbrica reside principalmente en la distribución de energía espectral, el modelo trabaja únicamente con la magnitud, mientras que la fase se reserva para la etapa de reconstrucción del audio. La magnitud se expresa en escala logarítmica (decibeles) según $S = 10\log_{10}(|F|^2)$, donde $F$ es el espectro complejo. Esta transformación comprime el rango dinámico de la señal y se ajusta mejor a la forma en que el oído humano percibe la intensidad sonora.
+
+A continuación normalizamos los espectrogramas en dos pasos. Primero recortamos los valores por debajo de un umbral de $-60$ dB y los desplazamos para que el piso de energía quede en cero, descartando así el ruido de fondo poco significativo. Luego dividimos por el valor máximo global del conjunto, al que llamamos $X_{max}$, llevando todas las magnitudes al rango $[0, 1]$. Este factor $X_{max}$ se almacena junto con el modelo, ya que es necesario para revertir la normalización al momento de reconstruir el audio.
+
+Cada \textit{frame} del espectrograma constituye entonces un vector de $1025$ componentes (correspondiente a $\textit{win length}/2 + 1$ \textit{bins} de frecuencia), que es la unidad de entrada que recibe la red. El autoencoder procesa cada \textit{frame} de forma independiente, sin modelar de manera explícita la evolución temporal entre ellos.
 
 \section{Arquitectura del modelo VAE}
-% Encoder lineal + BatchNorm + ELU, dos cabezas (μ, logσ²), truco de
-% reparametrización. Decoder espejo. Loss: MSE + β·KL.
 
+El componente central del sistema es un autoencoder variacional (VAE), una arquitectura generativa compuesta por dos redes que se entrenan de forma conjunta: un \textit{encoder}, que comprime cada espectrograma de entrada en una representación latente de baja dimensión, y un \textit{decoder}, que reconstruye el espectrograma original a partir de dicha representación. La figura~\ref{fig:arquitectura} esquematiza la arquitectura completa.
+
+\begin{figure}[H]
+\caption{Arquitectura general del autoencoder variacional: el \textit{encoder} reduce el espectrograma de entrada hasta un espacio latente de dimensión $4$ y el \textit{decoder} lo reconstruye de forma especular.}
+\centering
+\label{fig:arquitectura}
 \begin{tikzpicture}[
     neuron/.style={circle, draw=black!70, thick, minimum size=4.5mm, inner sep=0pt},
     label_style/.style={font=\sffamily\footnotesize, text=black!80}
@@ -112,7 +129,7 @@ Para cada instrumento se recolectó un total de 87 minutos aproximadamente, lo q
 % ENCODER (Capas 0 a 7)
 % ==========================
 \foreach \i/\size/\y in {
-    0/1024/4.2, 1/512/3.8, 2/256/3.4, 3/128/3.0, 4/64/2.6, 5/32/2.2, 6/16/1.8, 7/8/1.4
+    0/1025/4.2, 1/512/3.8, 2/256/3.4, 3/128/3.0, 4/64/2.6, 5/32/2.2, 6/16/1.8, 7/8/1.4
 } {
     % Neuronas extremas representativas
     \node[neuron, fill=blue!20] (N-\i-1) at (\i*\xstep, \y) {};
@@ -141,7 +158,7 @@ Para cada instrumento se recolectó un total de 87 minutos aproximadamente, lo q
 % DECODER (Capas 9 a 16)
 % ==========================
 \foreach \i/\size/\y in {
-    9/8/1.4, 10/16/1.8, 11/32/2.2, 12/64/2.6, 13/128/3.0, 14/256/3.4, 15/512/3.8, 16/1024/4.2
+    9/8/1.4, 10/16/1.8, 11/32/2.2, 12/64/2.6, 13/128/3.0, 14/256/3.4, 15/512/3.8, 16/1025/4.2
 } {
     \node[neuron, fill=green!20] (N-\i-1) at (\i*\xstep, \y) {};
     \node[neuron, fill=green!20] (N-\i-2) at (\i*\xstep, \y-0.5) {};
@@ -177,22 +194,76 @@ Para cada instrumento se recolectó un total de 87 minutos aproximadamente, lo q
     (9*\xstep-0.1, -5.4) -- (16*\xstep+0.1, -5.4) node[midway, below=6pt, font=\sffamily\footnotesize\bfseries] {Decoder};
 
 \end{tikzpicture}
+\end{figure}
+
+El \textit{encoder} está formado por una sucesión de capas totalmente conectadas que reducen progresivamente la dimensionalidad de la entrada, partiendo de los $1025$ valores del espectrograma hasta alcanzar el espacio latente. Cada capa intermedia combina una transformación lineal, una normalización por lotes (\textit{Batch Normalization}) y una activación no lineal ELU (\textit{Exponential Linear Unit}). A diferencia de un autoencoder clásico, el \textit{encoder} variacional no produce un único vector latente, sino dos: un vector de medias $\mu$ y un vector de logaritmos de varianza $\log\sigma^2$, que en conjunto parametrizan una distribución gaussiana sobre el espacio latente.
+
+A partir de estos parámetros se obtiene el vector latente $z$ mediante el truco de reparametrización (\textit{reparameterization trick}), que permite muestrear de la distribución conservando la diferenciabilidad necesaria para el entrenamiento por descenso de gradiente:
+\begin{equation}
+z = \mu + \varepsilon \odot \exp\left(\frac{1}{2}\log\sigma^2\right), \qquad \varepsilon \sim \mathcal{N}(0, I).
+\end{equation}
+En el caso particular en que se desactiva la regularización ($\beta = 0$), el modelo se comporta como un autoencoder determinista y se toma directamente $z = \mu$.
+
+El \textit{decoder} replica la estructura del \textit{encoder} de forma espejada: a partir del vector latente $z$ expande progresivamente la dimensionalidad mediante capas lineales con \textit{Batch Normalization} y activaciones ELU, hasta reconstruir un vector de $1025$ componentes que representa la magnitud espectral estimada. La capa final no incorpora activación no lineal, de modo de no restringir el rango de los valores reconstruidos. En la mayoría de los experimentos utilizamos un espacio latente de dimensión $4$, valor que justificamos empíricamente en el Capítulo~\ref{cap:experimentacion}.
 
 \section{Estrategia de entrenamiento}
-% Etapa 1: modelo base sobre todos los instrumentos.
-% Etapa 2: fine-tuning por instrumento desde el checkpoint base.
-% Variantes β=0 y β=0.001.
+
+El objetivo de optimización combina dos términos. El primero es el error de reconstrucción, calculado como el error cuadrático medio (MSE) entre el espectrograma de entrada $x$ y su reconstrucción $\hat{x}$. El segundo es la divergencia de Kullback-Leibler (KL) entre la distribución latente aprendida y una distribución normal estándar, que actúa como regularizador del espacio latente. Ambos términos se combinan mediante el hiperparámetro $\beta$:
+\begin{equation}
+\mathcal{L} = \mathcal{L}_{\mathrm{rec}} + \beta \, \mathcal{L}_{\mathrm{KL}},
+\end{equation}
+donde $\mathcal{L}_{\mathrm{rec}} = \frac{1}{N}\sum_i (x_i - \hat{x}_i)^2$ es el error cuadrático medio de reconstrucción y $\mathcal{L}_{\mathrm{KL}} = -\frac{1}{2}\sum_j \left(1 + \log\sigma_j^2 - \mu_j^2 - \sigma_j^2\right)$ es la divergencia KL. El factor $\beta$ regula el compromiso entre fidelidad de reconstrucción y regularización: con $\beta = 0$ el modelo equivale a un autoencoder determinista (AE), mientras que con $\beta > 0$ se obtiene un $\beta$-VAE cuyo espacio latente resulta más estructurado y continuo. La elección de su valor se aborda en el Capítulo~\ref{cap:experimentacion}.
+
+El entrenamiento de los modelos especializados por instrumento se organiza en dos etapas, que dan lugar a dos estrategias de inicialización. En la primera, la más directa, entrenamos cada modelo desde una inicialización aleatoria utilizando únicamente los datos del instrumento correspondiente. Nos referiremos a estos modelos como entrenados desde cero (\textit{Scratch}).
+
+En la segunda etapa adoptamos un enfoque más refinado basado en \textit{fine-tuning}. Primero entrenamos un \emph{modelo base} sobre el conjunto completo de los cuatro instrumentos, de modo que aprenda una representación tímbrica general. Luego, tomando ese modelo base como punto de partida común (\textit{Checkpoint}), especializamos un modelo por instrumento ajustando sus pesos sobre los datos específicos de cada uno.
+
+Combinando estas dos estrategias de inicialización (\textit{Scratch} y \textit{Checkpoint}) con las dos opciones de regularización del espacio latente, autoencoder clásico ($\beta=0$, AE) o $\beta$-VAE ($\beta=0.001$), obtenemos cuatro configuraciones por instrumento que comparamos en la experimentación.
+
+En todos los casos optimizamos los parámetros con el algoritmo Adam y una tasa de aprendizaje de $10^{-3}$, dividiendo los datos en un $95\%$ para entrenamiento y un $5\%$ para validación, y procesándolos en lotes (\textit{batches}) de $256$ ejemplos. Para evitar el sobreajuste empleamos \textit{early stopping}, deteniendo el entrenamiento cuando el error de validación deja de mejorar durante un número prefijado de épocas. Adicionalmente, aplicamos recorte de gradiente (\textit{gradient clipping}) para estabilizar la optimización.
 
 \section{Interpolación de pesos}
-% SLERP sobre vectores de parámetros aplanados capa a capa; fallback a LERP
-% cuando los vectores son cuasi-paralelos. Parámetro α ∈ [0,1].
+
+Una vez entrenados los modelos especializados por instrumento, generamos timbres híbridos interpolando directamente en el espacio de sus pesos. Dados dos modelos con arquitectura idéntica, un modelo origen A y un modelo destino B, y un coeficiente de interpolación $\alpha \in [0, 1]$, construimos un tercer modelo cuyos parámetros son una combinación de los de A y B. Por construcción, $\alpha = 0$ reproduce exactamente el modelo A y $\alpha = 1$ el modelo B, mientras que los valores intermedios producen \textit{decoders} que sintetizan timbres mixtos.
+
+La interpolación se realiza parámetro por parámetro, y exploramos dos alternativas para combinar cada tensor de pesos: una interpolación lineal (LERP) y una interpolación esférica (SLERP, \textit{Spherical Linear Interpolation}).
+
+La interpolación lineal calcula directamente el promedio ponderado entre los pesos de ambos modelos, $(1-\alpha)\, w_A + \alpha\, w_B$. La interpolación esférica, en cambio, recorre el arco que une ambos vectores sobre la hiperesfera en lugar de hacerlo en línea recta; su motivación es producir transiciones más suaves entre los modelos. Aplanando cada tensor a un vector, llamando $w_A$ y $w_B$ a los vectores de pesos de cada modelo y $\theta$ al ángulo que forman entre sí, esta última se define como:
+\begin{equation}
+\mathrm{SLERP}(w_A, w_B, \alpha) = \frac{\sin\left((1-\alpha)\,\theta\right)}{\sin\theta}\, w_A + \frac{\sin\left(\alpha\,\theta\right)}{\sin\theta}\, w_B.
+\end{equation}
+Existe un caso particular a tener en cuenta: cuando ambos vectores son prácticamente paralelos (ángulo muy pequeño), el cómputo de SLERP se vuelve numéricamente inestable, por lo que en esa situación recurrimos a la interpolación lineal. De este modo, las dos configuraciones que comparamos son una interpolación puramente lineal y una interpolación esférica que recae en la lineal únicamente cuando resulta necesario. Finalmente, los parámetros que no son de punto flotante, como los contadores internos de la normalización por lotes, no se interpolan: simplemente se toma el valor del modelo más cercano según $\alpha$.
 
 \section{Reconstrucción de audio}
-% Decoder → espectrograma → ISTFT con Griffin-Lim / PGHI / fase aleatoria.
+
+Para escuchar el resultado de un modelo, ya sea uno especializado o uno interpolado, debemos convertir su salida nuevamente en una forma de onda. El \textit{decoder} produce un espectrograma de magnitud normalizado, que primero reescalamos multiplicando por el factor $X_{max}$ y luego llevamos de la escala logarítmica a magnitud lineal, deshaciendo la normalización aplicada durante el preprocesamiento.
+
+El principal desafío de esta etapa es que el modelo reconstruye únicamente la magnitud del espectro, pero la STFT inversa requiere también la información de fase. Para recuperarla evaluamos distintas estrategias:
+\begin{itemize}
+    \item \textbf{Griffin-Lim}: algoritmo iterativo que estima una fase coherente con la magnitud dada.
+    \item \textbf{PGHI} (\textit{Phase Gradient Heap Integration})~\cite{prusa2017pghi}: método basado en el gradiente de fase que la reconstruye en una única pasada.
+    \item \textbf{Fase aleatoria}: se asigna una fase aleatoria a cada componente; es la opción más rápida pero de menor calidad.
+\end{itemize}
+Una vez combinadas la magnitud reconstruida y la fase estimada, aplicamos la STFT inversa (con la misma ventana de Hann y los mismos parámetros utilizados en el análisis) para obtener la forma de onda final.
+
 
 \section{Métricas de evaluación}
-% FAD con embeddings MERT-v1-95M; similitud coseno; MSE de reconstrucción;
-% UMAP del espacio latente; U de Wilcoxon-Mann-Whitney multidimensional.
+
+Para evaluar el sistema de manera cuantitativa recurrimos a un conjunto de métricas complementarias, cada una orientada a un aspecto distinto del problema.
+
+\textbf{Error de reconstrucción (MSE).} Durante la exploración de arquitecturas medimos la calidad de la reconstrucción mediante el error cuadrático medio sobre el conjunto de validación, lo que nos permite comparar modelos con distintos tamaños de espacio latente y distintos valores de $\beta$.
+
+\textbf{Distancia de Fréchet para Audio (FAD).} Para cuantificar la similitud tímbrica entre audios utilizamos la \textit{Fréchet Audio Distance}, que compara las distribuciones de \textit{embeddings} de dos conjuntos de audio en lugar de hacerlo muestra a muestra. Los \textit{embeddings} se extraen con el modelo preentrenado MERT (MERT-v1-95M). Modelando cada distribución como una gaussiana de media $\mu$ y matriz de covarianza $\Sigma$, la FAD se define como:
+\begin{equation}
+\mathrm{FAD} = \| \mu_a - \mu_b \|^2 + \mathrm{tr}\!\left(\Sigma_a + \Sigma_b - 2\left(\Sigma_a \Sigma_b\right)^{1/2}\right).
+\end{equation}
+Como la FAD es una distancia (cuanto menor, más parecidos son los audios), la transformamos en una medida de similitud acotada mediante $\mathrm{sim} = \exp(-\mathrm{FAD}/k)$, de modo que los valores cercanos a $1$ indican gran parecido tímbrico.
+
+\textbf{Similitud coseno.} Como métrica alternativa consideramos la similitud coseno entre los \textit{embeddings} promedio de MERT de dos audios. En la experimentación contrastamos su comportamiento con el de la FAD para justificar la elección de esta última.
+
+\textbf{Visualización con UMAP.} Para analizar de forma cualitativa la organización del espacio latente proyectamos los \textit{embeddings} latentes a dos dimensiones mediante UMAP, etiquetando cada punto según su instrumento. Esto permite observar visualmente si los instrumentos forman agrupamientos (\textit{clusters}) diferenciados.
+
+\textbf{Separación entre \textit{clusters} (U de Wilcoxon-Mann-Whitney).} Para complementar el análisis visual de UMAP con una medida cuantitativa de cuán separados están los \textit{clusters} de cada par de instrumentos, empleamos una versión multidimensional del estadístico U de Wilcoxon-Mann-Whitney. Este estadístico toma valores entre $0.5$ (los dos grupos son indistinguibles) y $1$ (separación total), y lo resumimos en una matriz de separación por pares de instrumentos.
 
 
 \chapter{Experimentación y resultados}
@@ -288,7 +359,7 @@ Para analizar la organización del espacio latente del modelo base, proyectamos 
 \end{subfigure}
 \end{figure}
 
-Para cuantificar la separación entre los \textit{clusters} de cada instrumento computamos las distancias entre sus centroides en la proyección UMAP, sintetizadas en la matriz de la figura~\ref{fig:umap_sep}.
+Para cuantificar la separación entre los \textit{clusters} de cada instrumento computamos, para cada par, el estadístico U de Wilcoxon-Mann-Whitney multidimensional sobre la proyección UMAP, sintetizado en la matriz de la figura~\ref{fig:umap_sep}. Recordemos que este estadístico vale $0.5$ cuando los dos grupos son indistinguibles y $1$ cuando se encuentran completamente separados.
 
 \begin{figure}[H]
 \caption{Matriz de separación entre \textit{clusters} de instrumentos en la proyección UMAP.}
@@ -416,39 +487,39 @@ Por el contrario, los modelos entrenados desde \textit{Scratch} exhiben un compo
 
 En conclusión, estos experimentos confirman empíricamente que la arquitectura más robusta para garantizar una transferencia tímbrica predecible, gradual e independiente en la interpolación de pesos es la basada en modelos con inicialización común y espacios latentes regularizados (\textit{Checkpoint} con $\beta=0.001$).
 
-\begin{comment}
-    
-\section{Barrido de dimensión del espacio latente}
-% Dims (2,3,4,6,8) × instrumento × 5 repeticiones, VAE vs β-VAE.
-
-\section{Variación de $\beta$}
-% β ∈ {0, 1e-5, 1e-4, 1e-3, 1e-2} sobre el modelo base. Evolución del MSE
-% y KL durante el entrenamiento.
-
-\section{Análisis del espacio latente con UMAP}
-% Proyección 2D del espacio latente del modelo base; clustering por
-% instrumento; U de Wilcoxon-Mann-Whitney multidimensional.
-
-\section{Interpolación entre pares de instrumentos}
-% Similitud de reconstrucción vs α para los 6 pares; comparación
-% from-checkpoint vs from-scratch y β vs no-β.
-
-\section{Audio morphing}
-% Transiciones audio-a-audio encodeando muestras reales, blending
-% secuencial de Z e interpolación de pesos.
-\end{comment}
-
-
 \chapter{Conclusiones}
 \label{cap:conclusiones}
 
 \section{Resumen de resultados}
 
+A lo largo de este trabajo desarrollamos y validamos una técnica para sintetizar timbres intermedios entre instrumentos mediante la interpolación de los pesos de modelos VAE especializados. A diferencia de las técnicas convencionales, que operan dentro del espacio latente de un único modelo entrenado sobre múltiples instrumentos, nuestro enfoque entrena un modelo independiente por instrumento e interpola directamente sobre su parametrización, generando \textit{decoders} intermedios capaces de producir timbres híbridos.
+
+Los experimentos presentados en el Capítulo~\ref{cap:experimentacion} nos permitieron tomar las decisiones de diseño del sistema y verificar su comportamiento. Determinamos que un espacio latente de dimensión $4$ ofrece el mejor compromiso entre fidelidad de reconstrucción y manipulabilidad, y que un valor de regularización de $\beta=0.001$ se ubica en el codo de la curva de Pareto, equilibrando el error de reconstrucción y la divergencia KL.
+
+El hallazgo central es que la calidad de la interpolación tímbrica depende fuertemente de la configuración de entrenamiento. La combinación de regularizar el espacio latente con un $\beta$-VAE y partir de un modelo base común mediante \textit{fine-tuning} (configuración \textit{Checkpoint-$\beta$-VAE}) produjo de manera consistente las transiciones más suaves y predecibles. Esta superioridad se manifestó tanto en las métricas cuantitativas, principalmente la \textit{Fréchet Audio Distance} (FAD), como en el análisis subjetivo de escucha de los audios generados, donde la transición entre timbres resultó perceptualmente más gradual y natural.
+
 \section{Contribuciones}
+
+La principal contribución de esta tesis es la propuesta y validación de una técnica novedosa de \emph{morphing} tímbrico basada en la interpolación de pesos entre modelos VAE especializados por instrumento, en lugar de la interpolación en el espacio latente habitual en la literatura.
+
+Como contribución complementaria, aportamos evidencia empírica de que dos factores resultan determinantes para obtener interpolaciones de alta calidad: la regularización del espacio latente mediante $\beta$-VAE y la inicialización de los modelos a partir de un punto de partida común (\textit{Checkpoint}). De ambos, la regularización demostró ser el factor de mayor impacto. Asimismo, mostramos que la FAD, combinada con \textit{embeddings} del modelo MERT, constituye una métrica robusta y consistente para evaluar la similitud tímbrica, superando a la similitud coseno en estabilidad frente a distintas entradas y configuraciones.
 
 \section{Limitaciones}
 
+Una decisión de diseño deliberada de este trabajo fue trabajar con modelos pequeños y una cantidad acotada de datos (aproximadamente 87 minutos por instrumento y cuatro instrumentos en total). El objetivo fue obtener modelos fáciles de entrenar, livianos y capaces de ejecutarse localmente en hardware no especialmente potente. Esta decisión está alineada con uno de los focos del proyecto: poder construir, a futuro, una herramienta que utilice estos modelos para la síntesis de audio en tiempo real.
+
+Como contrapartida, este compromiso impone límites sobre la fidelidad y la generalidad alcanzables. El tamaño reducido del conjunto de datos y de las arquitecturas acota la riqueza espectral que los modelos pueden capturar, y el conjunto de cuatro instrumentos restringe la variedad de timbres disponibles para interpolar. Entendemos estas limitaciones como un equilibrio consciente entre la calidad y la viabilidad de un uso liviano y en tiempo real, más que como una restricción intrínseca del método propuesto.
+
 \section{Trabajo futuro}
+
+A partir de los resultados obtenidos, identificamos varias líneas de trabajo futuro:
+
+\begin{itemize}
+    \item \textbf{Inferencia e interpolación en tiempo real}: llevar la ejecución de los modelos y la interpolación de sus pesos a un funcionamiento en tiempo real, requisito fundamental para su uso en contextos de interpretación y producción musical.
+    \item \textbf{Integración en herramientas de audio}: desarrollar herramientas que permitan utilizar estos modelos dentro de programas de producción musical, por ejemplo como \textit{plugins} en formato VST.
+    \item \textbf{Ampliación del dataset y de los instrumentos}: incorporar más instrumentos y una mayor cantidad de datos para mejorar la calidad de los modelos y habilitar un número más amplio de combinaciones tímbricas.
+    \item \textbf{Interpolación múltiple}: extender la técnica a una interpolación triple que permita mezclar tres modelos en función de dos parámetros de control.
+\end{itemize}
 
 
 %%%% BIBLIOGRAFIA
