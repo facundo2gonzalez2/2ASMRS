@@ -1,6 +1,6 @@
-\documentclass[11pt,a4paper]{tesis}
+\documentclass[12pt,a4paper]{tesis}
 % SI NO PENSAS IMPRIMIRLO EN FORMATO LIBRO PODES USAR
-%\documentclass[11pt,a4paper]{tesis}
+%\documentclass[11pt,a4paper,twoside]{tesis}
 
 \usepackage{graphicx}
 \usepackage{float}
@@ -30,14 +30,14 @@
 \pagestyle{empty}
 \input{abs_esp.tex}
 
-% \cleardoublepage
-% \input{abs_en.tex} % OPCIONAL: comentar si no se quiere
+\cleardoublepage
+\input{abs_en.tex} % OPCIONAL: comentar si no se quiere
 
-% \cleardoublepage
-% \input{agradecimientos.tex} % OPCIONAL: comentar si no se quiere
+\cleardoublepage
+\input{agradecimientos.tex} % OPCIONAL: comentar si no se quiere
 
-% \cleardoublepage
-% \input{dedicatoria.tex}  % OPCIONAL: comentar si no se quiere
+\cleardoublepage
+\input{dedicatoria.tex}  % OPCIONAL: comentar si no se quiere
 
 \cleardoublepage
 \tableofcontents
@@ -93,6 +93,7 @@ Para reunir el material de cada instrumento recurrimos a grabaciones reales prov
 
 Para cada instrumento recolectamos aproximadamente 87 minutos de audio, lo que totaliza alrededor de 5,8 horas de grabaciones. Mantener una duración equilibrada entre instrumentos evita sesgar el entrenamiento hacia alguno de ellos en particular. Este volumen resulta suficiente para la tarea de entrenamiento y validación propuesta y, al mismo tiempo, mantiene el entrenamiento reproducible sin requerir un costo computacional elevado.
 
+\newpage
 \section{Representación y preprocesamiento del audio}
 
 Las redes neuronales que componen el sistema no operan directamente sobre la forma de onda, sino sobre una representación en el dominio tiempo-frecuencia de la señal. Por ese motivo, antes del entrenamiento cada archivo de audio atraviesa una etapa de preprocesamiento común que describimos a continuación.
@@ -107,12 +108,62 @@ A continuación normalizamos los espectrogramas en dos pasos. Primero recortamos
 
 Cada \textit{frame} del espectrograma constituye entonces un vector de $1025$ componentes (correspondiente a $\textit{win length}/2 + 1$ \textit{bins} de frecuencia), que es la unidad de entrada que recibe la red. El autoencoder procesa cada \textit{frame} de forma independiente, sin modelar de manera explícita la evolución temporal entre ellos.
 
+\newpage
+\section{Autoencoders variacionales}
+\label{sec:vae}
+
+El componente central del sistema es un autoencoder variacional (VAE). Antes de detallar la arquitectura concreta que empleamos, en esta sección presentamos el marco teórico que motiva su elección y que sustenta tanto la función de pérdida como la estrategia de interpolación descritas más adelante.
+
+
+\subsection{Del autoencoder al enfoque variacional}
+
+Un autoencoder (AE) clásico está compuesto por dos redes que se entrenan de forma conjunta: un \textit{encoder}, que comprime cada entrada en un vector latente de baja dimensión, y un \textit{decoder}, que intenta reconstruir la entrada original a partir de ese vector. El entrenamiento se guía únicamente por un error de reconstrucción, de modo que el \textit{encoder} aprende una correspondencia determinista entre cada entrada y un punto del espacio latente. Nada obliga a que ese espacio quede organizado de forma continua: pueden aparecer regiones "vacías" que no corresponden a ninguna entrada vista durante el entrenamiento y que, por lo tanto, el \textit{decoder} no sabe reconstruir. Esta falta de estructura vuelve poco fiables tanto el muestreo de nuevos puntos como la interpolación entre representaciones, operaciones que resultan centrales para nuestro objetivo.
+
+El autoencoder variacional, introducido por Kingma y Welling~\cite{kingma2013auto}, aborda esta limitación imponiendo una estructura probabilística sobre el espacio latente. En lugar de asignar a cada entrada un único punto, el VAE le asocia una distribución de probabilidad y regulariza esas distribuciones para que se ajusten a una distribución de referencia común. De este modo el espacio latente resulta continuo y densamente cubierto, propiedad que habilita generar nuevas muestras e interpolar entre representaciones de manera coherente. Esta capacidad es precisamente la que buscamos para el \emph{morphing} tímbrico. La conveniencia de los modelos variacionales para el modelado de sonido fue además comprobada por Roche et al.~\cite{roche2019autoencodersmusicsoundmodeling}, en donde hallaron que ofrecen el mejor compromiso entre fidelidad de reconstrucción y regularización del espacio latente.
+
+\subsection{Formulación probabilística y objetivo variacional}
+
+El VAE se formula como un modelo generativo de variables latentes. Se asume que los datos se generan a partir de una variable latente $z$ con una distribución \textit{a priori} $p(z)$, que se toma como una gaussiana isotrópica $\mathcal{N}(0, I)$. El \textit{decoder} modela la verosimilitud $p(x \mid z)$, es decir, cómo se reconstruye una entrada a partir de un punto del espacio latente, mientras que el \textit{encoder} modela la distribución \textit{a posteriori} aproximada $q(z \mid x)$, que estima qué valores latentes explican una entrada dada.
+
+Idealmente ajustaríamos el modelo maximizando la verosimilitud de los datos, pero su cálculo exacto es intratable. En su lugar, el VAE maximiza una cota inferior de dicha verosimilitud, conocida como \textit{Evidence Lower Bound} (ELBO):
+\begin{equation}
+\mathcal{L}_{\mathrm{ELBO}} = E_{q(z \mid x)}\!\left[\log p(x \mid z)\right] - D_{\mathrm{KL}}\!\left(q(z \mid x)\,\|\,p(z)\right).
+\end{equation}
+El primer término premia la calidad de la reconstrucción: mide cuán probable es recuperar la entrada $x$ a partir de los valores latentes muestreados. El segundo término, la divergencia de Kullback-Leibler (KL), penaliza que la distribución \textit{a posteriori} $q(z \mid x)$ se aleje de la distribución \textit{a priori} $p(z)$, actuando como regularizador del espacio latente. Maximizar el ELBO equivale a minimizar su negativo, esto es, minimizar la suma del error de reconstrucción y el término de regularización. Bajo el supuesto de una verosimilitud gaussiana, el término de reconstrucción se reduce a un error cuadrático medio entre la entrada y su reconstrucción, lo que conecta directamente esta formulación con la función de pérdida que utilizamos en la práctica (Sección~\ref{sec:entrenamiento}).
+
+\subsection{Divergencia KL y regularización del espacio latente}
+
+La divergencia de Kullback-Leibler cuantifica cuánto se aparta una distribución de otra de referencia. En el VAE mide la distancia entre la distribución \textit{a posteriori} $q(z \mid x)$ que produce el \textit{encoder} y el \textit{a priori} $\mathcal{N}(0, I)$. Al incorporarla al objetivo, se fuerza a que las distribuciones latentes de todas las entradas se concentren en torno a una misma gaussiana estándar, haciéndolas solaparse y organizarse alrededor del origen. Este efecto es el que dota de continuidad al espacio latente y lo cubre densamente, evitando las regiones "vacías" propias del autoencoder clásico, característica que creemos deseable para la interpolación propuesta. Para distribuciones gaussianas, la divergencia KL respecto de $\mathcal{N}(0, I)$ admite una forma cerrada, que es la que se computa durante el entrenamiento:
+\begin{equation}
+\mathcal{L}_{\mathrm{KL}} = -\frac{1}{2}\sum_j \left(1 + \log\sigma_j^2 - \mu_j^2 - \sigma_j^2\right),
+\end{equation}
+donde $\mu_j$ y $\sigma_j^2$ son la media y la varianza de la $j$-ésima dimensión latente.
+
+\subsection{Truco de reparametrización}
+
+Para obtener el vector latente $z$ es necesario muestrear de la distribución $q(z \mid x)$, operación que en principio no es diferenciable y bloquearía el entrenamiento por descenso de gradiente. El truco de reparametrización (\textit{reparameterization trick})~\cite{kingma2013auto} resuelve este problema expresando la muestra como una transformación determinista de los parámetros de la distribución más una fuente de ruido externa:
+\begin{equation}
+z = \mu + \varepsilon \odot \exp\left(\frac{1}{2}\log\sigma^2\right), \qquad \varepsilon \sim \mathcal{N}(0, I).
+\end{equation}
+De este modo el muestreo conserva la diferenciabilidad necesaria para propagar el gradiente a través del \textit{encoder}. En el caso particular en que se desactiva la regularización ($\beta = 0$), el modelo se comporta como un autoencoder determinista y se toma directamente $z = \mu$.
+
+\subsection{El hiperparámetro $\beta$ y el $\beta$-VAE}
+
+Higgins et al.~\cite{higgins2017beta} propusieron el $\beta$-VAE, una generalización del objetivo del VAE que introduce un factor escalar $\beta$ ponderando el término de la divergencia KL:
+\begin{equation}
+\mathcal{L} = \mathcal{L}_{\mathrm{rec}} + \beta \, \mathcal{L}_{\mathrm{KL}}.
+\end{equation}
+El valor de $\beta$ regula el equilibrio entre la fidelidad de la reconstrucción y la regularización del espacio latente. Con $\beta = 1$ se recupera el VAE estándar, mientras que valores de $\beta$ mayores imponen una mayor presión sobre el espacio latente, favoreciendo representaciones más estructuradas a costa de degradar la reconstrucción.
+
+En el extremo, con $\beta = 0$ el término KL desaparece y el modelo se reduce a un autoencoder determinista (AE). La elección concreta del valor de $\beta$ se aborda empíricamente en el Capítulo~\ref{cap:experimentacion}.
+
+\newpage
 \section{Arquitectura del modelo VAE}
 
-El componente central del sistema es un autoencoder variacional (VAE), una arquitectura generativa compuesta por dos redes que se entrenan de forma conjunta: un \textit{encoder}, que comprime cada espectrograma de entrada en una representación latente de baja dimensión, y un \textit{decoder}, que reconstruye el espectrograma original a partir de dicha representación. La figura~\ref{fig:arquitectura} esquematiza la arquitectura completa.
+La arquitectura que empleamos instancia el marco descrito en la sección anterior mediante dos redes que se entrenan de forma conjunta: un \textit{encoder}, que comprime cada espectrograma de entrada en una representación latente de baja dimensión, y un \textit{decoder}, que reconstruye el espectrograma original a partir de dicha representación. La figura~\ref{fig:arquitectura} esquematiza la arquitectura completa.
 
 \begin{figure}[H]
-\caption{Arquitectura general del autoencoder variacional: el \textit{encoder} reduce el espectrograma de entrada hasta un espacio latente de dimensión $4$ y el \textit{decoder} lo reconstruye de forma especular.}
+\caption{Arquitectura general del autoencoder variacional: el \textit{encoder} reduce el espectrograma de entrada hasta un espacio latente de dimensión $4$ y el \textit{decoder} lo reconstruye de forma espejada.}
 \centering
 \label{fig:arquitectura}
 \begin{tikzpicture}[
@@ -198,23 +249,19 @@ El componente central del sistema es un autoencoder variacional (VAE), una arqui
 \end{tikzpicture}
 \end{figure}
 
-El \textit{encoder} está formado por una sucesión de capas totalmente conectadas que reducen progresivamente la dimensionalidad de la entrada, partiendo de los $1025$ valores del espectrograma hasta alcanzar el espacio latente. Cada capa intermedia combina una transformación lineal, una normalización por lotes (\textit{Batch Normalization}) y una activación no lineal ELU (\textit{Exponential Linear Unit}). A diferencia de un autoencoder clásico, el \textit{encoder} variacional no produce un único vector latente, sino dos: un vector de medias $\mu$ y un vector de logaritmos de varianza $\log\sigma^2$, que en conjunto parametrizan una distribución gaussiana sobre el espacio latente.
-
-A partir de estos parámetros se obtiene el vector latente $z$ mediante el truco de reparametrización (\textit{reparameterization trick}), que permite muestrear de la distribución conservando la diferenciabilidad necesaria para el entrenamiento por descenso de gradiente:
-\begin{equation}
-z = \mu + \varepsilon \odot \exp\left(\frac{1}{2}\log\sigma^2\right), \qquad \varepsilon \sim \mathcal{N}(0, I).
-\end{equation}
-En el caso particular en que se desactiva la regularización ($\beta = 0$), el modelo se comporta como un autoencoder determinista y se toma directamente $z = \mu$.
+El \textit{encoder} está formado por una sucesión de capas totalmente conectadas que reducen progresivamente la dimensionalidad de la entrada, partiendo de los $1025$ valores del espectrograma hasta alcanzar el espacio latente. Cada capa intermedia combina una transformación lineal, una normalización por lotes (\textit{Batch Normalization}) y una activación no lineal ELU (\textit{Exponential Linear Unit}). Tal como se describió en la sección anterior, el \textit{encoder} variacional no produce un único vector latente, sino dos: un vector de medias $\mu$ y un vector de logaritmos de varianza $\log\sigma^2$, que en conjunto parametrizan una distribución gaussiana sobre el espacio latente. A partir de estos parámetros se obtiene el vector latente $z$ mediante el truco de reparametrización descrito en la Sección~\ref{sec:vae}.
 
 El \textit{decoder} replica la estructura del \textit{encoder} de forma espejada: a partir del vector latente $z$ expande progresivamente la dimensionalidad mediante capas lineales con \textit{Batch Normalization} y activaciones ELU, hasta reconstruir un vector de $1025$ componentes que representa la magnitud espectral estimada. La capa final no incorpora activación no lineal, de modo de no restringir el rango de los valores reconstruidos. En la mayoría de los experimentos utilizamos un espacio latente de dimensión $4$, valor que justificamos empíricamente en el Capítulo~\ref{cap:experimentacion}.
 
+\newpage
 \section{Estrategia de entrenamiento}
+\label{sec:entrenamiento}
 
-El objetivo de optimización combina dos términos. El primero es el error de reconstrucción, calculado como el error cuadrático medio (MSE) entre el espectrograma de entrada $x$ y su reconstrucción $\hat{x}$. El segundo es la divergencia de Kullback-Leibler (KL) entre la distribución latente aprendida y una distribución normal estándar, que actúa como regularizador del espacio latente. Ambos términos se combinan mediante el hiperparámetro $\beta$:
+La función de pérdida que minimizamos es el negativo del ELBO presentado en la Sección~\ref{sec:vae}, con la divergencia KL ponderada por el hiperparámetro $\beta$ (esto es, $\mathcal{L} = \mathcal{L}_{\mathrm{rec}} + \beta \, \mathcal{L}_{\mathrm{KL}}$). En la práctica, el término de reconstrucción se calcula como el error cuadrático medio (MSE) entre el espectrograma de entrada $x$ y su reconstrucción $\hat{x}$:
 \begin{equation}
-\mathcal{L} = \mathcal{L}_{\mathrm{rec}} + \beta \, \mathcal{L}_{\mathrm{KL}},
+\mathcal{L}_{\mathrm{rec}} = \frac{1}{N}\sum_i (x_i - \hat{x}_i)^2,
 \end{equation}
-donde $\mathcal{L}_{\mathrm{rec}} = \frac{1}{N}\sum_i (x_i - \hat{x}_i)^2$ es el error cuadrático medio de reconstrucción y $\mathcal{L}_{\mathrm{KL}} = -\frac{1}{2}\sum_j \left(1 + \log\sigma_j^2 - \mu_j^2 - \sigma_j^2\right)$ es la divergencia KL. El factor $\beta$ regula el compromiso entre fidelidad de reconstrucción y regularización: con $\beta = 0$ el modelo equivale a un autoencoder determinista (AE), mientras que con $\beta > 0$ se obtiene un $\beta$-VAE cuyo espacio latente resulta más estructurado y continuo. La elección de su valor se aborda en el Capítulo~\ref{cap:experimentacion}.
+mientras que el término de regularización $\mathcal{L}_{\mathrm{KL}}$ es la divergencia KL en su forma cerrada, definida en la Sección~\ref{sec:vae}. La elección del valor de $\beta$ se aborda en el Capítulo~\ref{cap:experimentacion}.
 
 El entrenamiento de los modelos especializados por instrumento se organiza en dos etapas, que dan lugar a dos estrategias de inicialización. En la primera, la más directa, entrenamos cada modelo desde una inicialización aleatoria utilizando únicamente los datos del instrumento correspondiente. Nos referiremos a estos modelos como entrenados desde cero (\textit{Scratch}).
 
@@ -224,6 +271,7 @@ Combinando estas dos estrategias de inicialización (\textit{Scratch} y \textit{
 
 En todos los casos optimizamos los parámetros con el algoritmo Adam y una tasa de aprendizaje de $10^{-3}$, dividiendo los datos en un $95\%$ para entrenamiento y un $5\%$ para validación, y procesándolos en lotes (\textit{batches}) de $256$ ejemplos. Para evitar el sobreajuste empleamos \textit{early stopping}, deteniendo el entrenamiento cuando el error de validación deja de mejorar durante un número prefijado de épocas. Adicionalmente, aplicamos recorte de gradiente (\textit{gradient clipping}) para estabilizar la optimización.
 
+\newpage
 \section{Interpolación de pesos}
 
 Una vez entrenados los modelos especializados por instrumento, generamos timbres híbridos interpolando directamente en el espacio de sus pesos. Dados dos modelos con arquitectura idéntica, un modelo origen A y un modelo destino B, y un coeficiente de interpolación $\alpha \in [0, 1]$, construimos un tercer modelo cuyos parámetros son una combinación de los de A y B. Por construcción, $\alpha = 0$ reproduce exactamente el modelo A y $\alpha = 1$ el modelo B, mientras que los valores intermedios producen \textit{decoders} que sintetizan timbres mixtos.
@@ -236,6 +284,7 @@ La interpolación lineal calcula directamente el promedio ponderado entre los pe
 \end{equation}
 Existe un caso particular a tener en cuenta: cuando ambos vectores son prácticamente paralelos (ángulo muy pequeño), el cómputo de SLERP se vuelve numéricamente inestable, por lo que en esa situación recurrimos a la interpolación lineal. De este modo, las dos configuraciones que comparamos son una interpolación puramente lineal y una interpolación esférica que recae en la lineal únicamente cuando resulta necesario. Finalmente, los parámetros que no son de punto flotante, como los contadores internos de la normalización por lotes, no se interpolan: simplemente se toma el valor del modelo más cercano según $\alpha$.
 
+\newpage
 \section{Reconstrucción de audio}
 
 Para escuchar el resultado de un modelo, ya sea uno especializado o uno interpolado, debemos convertir su salida nuevamente en una forma de onda. El \textit{decoder} produce un espectrograma de magnitud normalizado, que primero reescalamos multiplicando por el factor $X_{max}$ y luego llevamos de la escala logarítmica a magnitud lineal, deshaciendo la normalización aplicada durante el preprocesamiento.
@@ -248,14 +297,14 @@ El principal desafío de esta etapa es que el modelo reconstruye únicamente la 
 \end{itemize}
 Una vez combinadas la magnitud reconstruida y la fase estimada, aplicamos la STFT inversa (con la misma ventana de Hann y los mismos parámetros utilizados en el análisis) para obtener la forma de onda final.
 
-
+\newpage
 \section{Métricas de evaluación}
 
 Para evaluar el sistema de manera cuantitativa recurrimos a un conjunto de métricas complementarias, cada una orientada a un aspecto distinto del problema.
 
 \textbf{Error de reconstrucción (MSE).} Durante la exploración de arquitecturas medimos la calidad de la reconstrucción mediante el error cuadrático medio sobre el conjunto de validación, lo que nos permite comparar modelos con distintos tamaños de espacio latente y distintos valores de $\beta$.
 
-\textbf{Distancia de Fréchet para Audio (FAD).} Para cuantificar la similitud tímbrica entre audios utilizamos la \textit{Fréchet Audio Distance}, que compara las distribuciones de \textit{embeddings} de dos conjuntos de audio en lugar de hacerlo muestra a muestra. Los \textit{embeddings} se extraen con el modelo preentrenado MERT (MERT-v1-95M). Modelando cada distribución como una gaussiana de media $\mu$ y matriz de covarianza $\Sigma$, la FAD se define como:
+\textbf{Distancia de Fréchet para Audio (FAD).} Para cuantificar la similitud tímbrica entre audios utilizamos la \textit{Fréchet Audio Distance}, que compara las distribuciones de \textit{embeddings} de dos conjuntos de audio en lugar de hacerlo muestra a muestra. Los \textit{embeddings} se extraen con el modelo preentrenado MERT~\cite{li2023mert} (MERT-v1-95M). Modelando cada distribución como una gaussiana de media $\mu$ y matriz de covarianza $\Sigma$, la FAD se define como:
 \begin{equation}
 \mathrm{FAD} = \| \mu_a - \mu_b \|^2 + \mathrm{tr}\!\left(\Sigma_a + \Sigma_b - 2\left(\Sigma_a \Sigma_b\right)^{1/2}\right).
 \end{equation}
@@ -306,13 +355,17 @@ En efecto, lo observado para los modelos AE (con $\beta=0$) se cumple también c
 \includegraphics[scale=0.59]{imgs/01_arquitectura/4_beta_kl_evolution.png}
 \end{figure}
 
-Efectivamente, el salto más significativo se encuentra entre las dimensiones $2$ y $4$, y a partir de allí la KL sigue disminuyendo pero con una ganancia relativa menor. En la figura~\ref{fig:mse_per_instrument} se presenta además el desglose del error de reconstrucción por instrumento, que confirma la misma tendencia. En base a estos resultados, adoptamos para el resto de los experimentos arquitecturas con espacio latente de dimensión $4$.
+Efectivamente, el salto más significativo se encuentra entre las dimensiones $2$ y $4$, y a partir de allí la KL sigue disminuyendo pero con una ganancia relativa menor.
+
+Para concluir este análisis, queremos asegurarnos de que este comportamiento es consistente para todos los modelos por separado. En la figura~\ref{fig:mse_per_instrument} se presenta el desglose del error de reconstrucción por instrumento y modelo base, que confirma la misma tendencia. 
 
 \begin{figure}[H]
 \makebox[\textwidth][c]{\includegraphics[width=1.2\textwidth]{imgs/01_arquitectura/1_comparacion_por_instrumento.png}}
 \caption{Desglose: Error de Reconstrucción (MSE) por modelo}
 \label{fig:mse_per_instrument}
 \end{figure}
+
+Corroboramos así que todos los modelos reportan el mismo comportamiento frente al aumento de tamaño del espacio latente. En base a estos resultados, adoptamos para el resto de los experimentos arquitecturas con espacio latente de dimensión $4$.
 
 \subsection{Experimentación $\beta$-VAE}
 
@@ -343,6 +396,7 @@ La comparación entre ambas representaciones resulta de especial utilidad para a
 
 A partir de este análisis, se observa claramente que $\beta=0.001$ se sitúa en el "codo" de la curva, representando el mejor punto de compromiso (\textit{trade-off}) del sistema. Por un lado, aumentar la regularización a $\beta=0.01$ penaliza excesivamente la fidelidad del modelo, incrementando notablemente el error de reconstrucción. Por el otro, relajar la regularización a $\beta=0.0001$ o $\beta=0.00001$ genera un incremento desmedido en la divergencia KL, aproximándose al comportamiento desregulado de un autoencoder tradicional ($\beta=0$) sin aportar una mejora sustancial en el error de reconstrucción. Este análisis cuantitativo se complementó con escuchas subjetivas de las reconstrucciones obtenidas con $\beta=0.001$, confirmando que el nivel de error alcanzado bajo esta configuración permite reproducir los audios de entrenamiento de forma prácticamente indistinguible respecto a los resultados del caso $\beta=0$.
 
+\newpage
 \section{Análisis del Espacio Latente}
 
 Para analizar la organización del espacio latente del modelo base, proyectamos los \textit{embeddings} a $2$ dimensiones mediante UMAP, configurado con un número de vecinos (\textit{n\_neighbors}) de $15$, y etiquetando cada muestra con el instrumento al que corresponde. Esto nos permite evaluar visualmente si los distintos instrumentos forman \textit{clusters} diferenciados y comparar el comportamiento entre las configuraciones $\beta=0$ y $\beta=0.001$. Los resultados se presentan en la figura~\ref{fig:umap}.
@@ -393,7 +447,7 @@ Para cuantificar la separación entre los \textit{clusters} de cada instrumento 
 
 Los resultados obtenidos confirman que en ambas configuraciones se observa un alto nivel de separación entre instrumentos, con valores próximos a $1$ para todos los pares. No obstante, la separación resulta consistentemente algo menor en el modelo con $\beta=0.001$ que en el modelo sin regularización, comportamiento que se puede explicar con el hecho de que la regularización produce un espacio latente más suavizado y continuo. Por ejemplo, para el par bajo--voz el estadístico desciende de $0.926$ en el caso $\beta=0$ a $0.796$ con $\beta=0.001$.
 
-
+\newpage
 \section{Interpolación de parámetros}
 
 Esta sección se centra en la interpolación de pesos entre dos modelos especializados en instrumentos distintos. Tal como se definió en la sección de metodología, generaremos un modelo intermedio en función de tres parámetros: un modelo origen A, un modelo destino B y un coeficiente de interpolación $\alpha \in [0, 1]$. De este modo, con $\alpha=0$ obtenemos exactamente el modelo A, y con $\alpha=1$ obtenemos el modelo B. 
