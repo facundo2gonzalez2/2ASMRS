@@ -1,4 +1,4 @@
-\documentclass[12pt,a4paper]{tesis}
+\documentclass[12pt,a4paper,twoside]{tesis}
 % SI NO PENSAS IMPRIMIRLO EN FORMATO LIBRO PODES USAR
 %\documentclass[11pt,a4paper,twoside]{tesis}
 
@@ -11,6 +11,7 @@
 \usepackage[left=3cm,right=3cm,bottom=3.5cm,top=3.5cm]{geometry}
 \usepackage{tikz}
 \usetikzlibrary{decorations.pathreplacing, positioning}
+\usepackage{url}
 
 \begin{document}
 
@@ -64,7 +65,48 @@ En el ámbito de la síntesis y el modelado de audio musical, Roche et al.~\cite
 
 Posteriormente, orientados al procesamiento en el dominio del audio, Caillon y Esling~\cite{caillon2021rave} demostraron con la arquitectura RAVE que los VAE son capaces de sintetizar audio de alta calidad en tiempo real operando directamente sobre representaciones espectrales. Por su parte, Riera, Eguía y Zabaljáuregui~\cite{riera2017timbre} exploraron la construcción de espacios tímbricos mediante autoencoders dispersos (\textit{sparse autoencoders}), evidenciando que las representaciones aprendidas capturan las relaciones perceptuales entre timbres instrumentales de manera consistente con la percepción humana.
 
+\newpage
+\section{Antecedentes en morphing de audio}
 
+El \emph{morphing} de audio tiene una larga trayectoria y ha sido abordado desde paradigmas muy diversos. Para ordenar esa variedad y ubicar con claridad nuestra propuesta, resulta útil clasificar los enfoques según \emph{dónde} se realiza la interpolación que da lugar al sonido intermedio: sobre la \textbf{señal} misma, sobre el \textbf{espacio latente} de un modelo generativo, o —como proponemos en este trabajo— sobre los \textbf{pesos} del propio modelo. Bajo esta óptica repasamos a continuación los antecedentes más representativos, señalando en cada caso sus ventajas, sus limitaciones y sus diferencias con el enfoque de esta tesis.
+
+Uno de los trabajos fundacionales del área es el de Slaney, Covell y Lassiter~\cite{slaney1996audiomorphing}, que introdujeron un procedimiento de \emph{morphing} automático basado íntegramente en procesamiento de señales, sin ninguna forma de aprendizaje. Su método, inspirado en el morphing de imágenes, descompone cada espectrograma en una componente de forma espectral suave y una componente de \textit{pitch}, establece una correspondencia automática entre ambos sonidos mediante \textit{dynamic time warping} y, recién entonces, interpola por \textit{cross-fade} las representaciones alineadas. La descomposición es clave: mezclar espectrogramas crudos produce la sensación de dos sonidos simultáneos en lugar de uno híbrido. Este enfoque tiene la ventaja de ser genérico y de no requerir entrenamiento, pero exige una etapa de alineamiento explícito cuya función debe adaptarse a cada tarea, descansa en heurísticas sensibles a la estimación de \textit{pitch} y fue validado únicamente sobre voz, sin apuntar a un funcionamiento en tiempo real. A diferencia de nuestra propuesta, opera sobre la señal y necesita resolver la correspondencia entre fuentes de forma previa, mientras que en nuestro caso esa correspondencia queda implícita en los pesos aprendidos por cada modelo.
+
+Con la irrupción de las redes neuronales profundas, la interpolación se trasladó al espacio latente de modelos generativos. El antecedente más cercano en espíritu a este trabajo es NSynth, de Engel et al.~\cite{engel2017nsynth}, que emplea un autoencoder cuyo \textit{decoder} es un WaveNet autorregresivo para aprender un espacio de \textit{embeddings} de notas musicales, junto con un extenso conjunto de datos homónimo. El \emph{morphing} se logra codificando dos instrumentos e interpolando sus \textit{embeddings} en el espacio latente de un \emph{único} modelo entrenado sobre todos los instrumentos; a diferencia de una mezcla en el dominio de la señal, esta operación \emph{fusiona} los timbres y genera estructura armónica nueva. Esta misma idea fue materializada por el proyecto Magenta en una interfaz interactiva que dispone cuatro instrumentos en las esquinas de una grilla y los combina de forma continua~\cite{magenta2017nsynthsoundmaker}, muy afín a la herramienta que motiva nuestro trabajo. Sus principales limitaciones son el elevado costo del \textit{decoder} autorregresivo, que impide la síntesis en tiempo real, al punto de que la propia interfaz debe recurrir a audio pre-computado, y el tamaño del modelo. La diferencia central con nuestra propuesta es el \emph{locus} de la interpolación: NSynth interpola en el espacio latente de un modelo único, mientras que nosotros interpolamos los pesos de modelos independientes especializados por instrumento.
+
+Los trabajos más recientes se apoyan mayoritariamente en modelos de difusión, por lo general latentes y preentrenados, lo que aporta gran calidad a costa de un peso computacional considerable. En esta línea conviene distinguir la \emph{transferencia tímbrica} del \emph{morphing} propiamente dicho. Mancusi et al.~\cite{mancusi2025latentbridges} proponen los \textit{latent diffusion bridges}, un método no supervisado que entrena un modelo de difusión independiente por instrumento y los conecta a través de un \textit{prior} gaussiano común para transferir el timbre de una grabación a otro instrumento preservando su melodía. Comparte con nuestro trabajo la filosofía de entrenar un modelo por instrumento y de poder incorporar instrumentos nuevos sin reentrenar el resto, pero se trata de una transferencia total de fuente a destino y no de la síntesis de estados intermedios controlables; además, su inferencia iterativa lo aleja del tiempo real. SoundMorpher, de Niu et al.~\cite{niu2024soundmorpher}, sí aborda el \emph{morphing} propiamente dicho aprovechando un modelo de difusión texto-a-audio preentrenado: interpola en el espacio de ruido y en los \textit{embeddings} condicionales, y aporta la noción de \emph{morphing} perceptualmente uniforme, buscando que cada paso de la transición produzca una diferencia perceptual constante. Su contrapartida es la dependencia de un modelo grande multi-componente, un costo por par de sonidos elevado y una calidad acotada por la frecuencia de muestreo del modelo base. En el dominio específico de la guitarra, Chen et al.~\cite{chen2025guitartonemorphing} comparan varios métodos de \emph{morphing} de tono entre configuraciones de efectos de una misma guitarra y concluyen que un autoencoder simple y liviano supera en calidad perceptual a los \textit{pipelines} de difusión con ajuste fino, resultado que respalda directamente nuestra apuesta por modelos pequeños; además, una de sus variantes recurre a interpolar los pesos de la red, siendo el punto de contacto más próximo con la idea central de esta tesis, aunque de manera secundaria y restringida a un solo instrumento. Finalmente, Mix2Morph, de Chu et al.~\cite{chu2026mix2morph}, entrena un gran modelo de difusión texto-a-audio para aprender a \emph{morphear} a partir de mezclas ruidosas usadas como datos sustitutos, orientado a efectos de sonido y con el control guiado por texto; representa el extremo de mayor escala y menor portabilidad frente a nuestro enfoque.
+
+En conjunto, estos antecedentes revelan una tendencia hacia modelos cada vez más grandes y costosos, así como el hecho de que casi toda la literatura interpola el \emph{contenido} (la señal o el código latente) dentro de un modelo fijo, tal como se resume en la figura~\ref{fig:comparacion_antecedentes}. Interpolar directamente la \emph{parametrización} de modelos distintos, especializados por instrumento y deliberadamente livianos, es el espacio que esta tesis busca ocupar, con la mira puesta en un uso eficiente y eventualmente en tiempo real. Se observa, además, una convergencia de la comunidad en torno a la \textit{Fréchet Audio Distance} como métrica de similitud tímbrica, criterio que también adoptaremos en nuestra evaluación.
+
+\begin{figure}[H]
+\centering
+\footnotesize
+\begin{tabular}{|p{2.8cm}|p{3.3cm}|p{3.0cm}|p{3.5cm}|}
+\hline
+\textbf{Antecedente} & \textbf{Arquitectura} & \textbf{Qué morphea} & \textbf{Dónde interpola} \\
+\hline
+Slaney et al.~\cite{slaney1996audiomorphing} & DSP clásico, sin aprendizaje & Voz y habla genérica & En la señal (\textit{warping} + \textit{cross-fade}) \\
+\hline
+NSynth~\cite{engel2017nsynth} & Autoencoder con \textit{decoder} WaveNet autorregresivo & Timbre entre instrumentos & Espacio latente de un único modelo \\
+\hline
+Latent Diffusion Bridges~\cite{mancusi2025latentbridges} & Difusión latente (puentes DDIB) & Timbre entre instrumentos (\textit{transfer}) & Espacio latente compartido (\textit{prior} gaussiano) \\
+\hline
+SoundMorpher~\cite{niu2024soundmorpher} & Difusión latente preentrenada (AudioLDM2) & Sonidos generales (timbre, música, ambiente) & Espacio de ruido/latente y \textit{embeddings} de texto \\
+\hline
+Guitar Tone Morphing~\cite{chen2025guitartonemorphing} & Difusión latente con LoRA o autoencoder & Tonos y efectos de una misma guitarra & Espacio latente (pesos en una variante) \\
+\hline
+Mix2Morph~\cite{chu2026mix2morph} & Difusión latente texto-a-audio & Efectos y sonidos generales & Dentro de un único modelo (guiado por texto) \\
+\hline
+\textbf{Esta propuesta} & $\beta$-VAE \textit{fully-connected} pequeño & Timbre entre instrumentos & \textbf{Espacio de pesos de modelos independientes} \\
+\hline
+\end{tabular}
+\caption{Comparación de los antecedentes de \emph{morphing} de audio según su arquitectura, el tipo de material sonoro que transforman y el espacio en el que realizan la interpolación. La última fila incorpora la propuesta de esta tesis para facilitar el contraste: mientras que los enfoques previos interpolan sobre la señal o sobre el espacio latente de un modelo, la nuestra lo hace sobre el espacio de pesos de modelos especializados de forma independiente por instrumento.}
+\label{fig:comparacion_antecedentes}
+\end{figure}
+
+
+
+\newpage
 \section{Propuesta}
 
 Si bien los antecedentes reseñados demuestran la utilidad de los modelos generativos para representar el timbre, la síntesis de sonoridades intermedias entre instrumentos específicos permanece como un problema abierto. Las técnicas convencionales de interpolación suelen operar dentro del espacio latente de un único modelo entrenado conjuntamente sobre múltiples instrumentos, una estrategia que frecuentemente limita la fidelidad y el detalle de cada timbre individual.
