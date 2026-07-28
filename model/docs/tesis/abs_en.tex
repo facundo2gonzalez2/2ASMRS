@@ -5,23 +5,30 @@
 \chapter*{\runtitle}
 
 \noindent \emph{Timbre morphing}, the generation of intermediate timbres
-between known instruments, is a tool of interest for music production
+between known sounds, is a tool of interest for music production
 and sound design, as it allows the sonic palette to be expanded beyond
-traditional instruments. Common techniques operate in the latent space
-of a single generative model trained on multiple instruments; while a
-high-capacity model can represent several timbres with fidelity, in small
-models this strategy compromises the fidelity of each individual timbre.
+traditional sounds. Common techniques operate in the latent space
+of a single generative model trained on multiple timbres; while a
+high-capacity model can represent several of them with fidelity, in small
+models this strategy compromises the fidelity of each one.
 
 This work proposes an alternative approach: training variational
-autoencoders ($\beta$-VAE) specialized per instrument from a common base
+autoencoders ($\beta$-VAE) specialized per timbre from a common base
 model, and generating hybrid timbres by interpolating the weights of those
 models.
 
 The system is trained on magnitude spectrograms obtained via STFT
-from four instruments (piano, guitar, voice and bass) and is evaluated
+from four sound sources (piano, guitar, voice and bass) and is evaluated
 using Fréchet Audio Distance (FAD), cosine similarity over MERT
 \emph{embeddings}, latent-space analysis with UMAP and reconstruction
 error.
+
+The results show that specializing each model by \emph{fine-tuning} from a
+common base model —rather than training it from scratch— yields more gradual
+and predictable timbre transitions, particularly when combined with
+latent-space regularization ($\beta$-VAE). Being based on small, lightweight
+models, the approach is moreover potentially suitable for integration into a
+real-time synthesis system.
 
 \bigskip
 

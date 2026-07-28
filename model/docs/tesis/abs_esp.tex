@@ -5,23 +5,30 @@
 \chapter*{\runtitulo}
 
 \noindent El \emph{morphing tímbrico}, la generación de timbres intermedios
-entre instrumentos conocidos, es una herramienta de interés para la producción
+entre sonidos conocidos, es una herramienta de interés para la producción
 musical y el diseño sonoro, ya que permite expandir la paleta sonora más allá
-de los instrumentos tradicionales. Las técnicas usuales operan en el
+de los sonidos tradicionales. Las técnicas usuales operan en el
 espacio latente de un único modelo generativo entrenado sobre múltiples
-instrumentos; si bien un modelo de gran capacidad puede representar varios
-timbres con fidelidad, en modelos pequeños esta estrategia compromete la
-fidelidad de cada timbre individual.
+timbres; si bien un modelo de gran capacidad puede representar varios de
+ellos con fidelidad, en modelos pequeños esta estrategia compromete la
+fidelidad de cada uno.
 
 En este trabajo se propone un enfoque alternativo: entrenar autoencoders
-variacionales ($\beta$-VAE) especializados por instrumento a partir de un
+variacionales ($\beta$-VAE) especializados por timbre a partir de un
 modelo base común, y generar timbres híbridos mediante la interpolación
-de los pesos de esos modelos. 
+de los pesos de esos modelos.
 
 El sistema se entrena sobre espectrogramas de magnitud obtenidos por STFT
-de cuatro instrumentos (piano, guitarra, voz y bajo) y se evalúa mediante
+de cuatro fuentes sonoras (piano, guitarra, voz y bajo) y se evalúa mediante
 Fréchet Audio Distance (FAD), similitud coseno sobre \emph{embeddings} MERT,
-análisis del espacio latente con UMAP y error de reconstrucción. 
+análisis del espacio latente con UMAP y error de reconstrucción.
+
+Los resultados muestran que especializar cada modelo mediante \emph{fine-tuning}
+a partir de un modelo base común —en lugar de entrenarlo desde cero— produce
+transiciones tímbricas más graduales y predecibles, en especial al combinarse
+con la regularización del espacio latente ($\beta$-VAE). Al apoyarse en modelos
+pequeños y livianos, el enfoque resulta además potencialmente apto para
+integrarse en un sistema de síntesis en tiempo real.
 
 \bigskip
 
