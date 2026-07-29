@@ -1,0 +1,56 @@
+@article{Niu2024SoundMorpherPSA,
+  title={SoundMorpher: Perceptually-Uniform Sound Morphing with Diffusion Model},
+  author={Xinlei Niu and Jing Zhang and Charles Patrick Martin},
+  journal={ArXiv},
+  year={2024},
+  volume={abs/2410.02144},
+  url={https://api.semanticscholar.org/CorpusId:273098320}
+}
+
+@article{Slaney1996AutomaticAMB,
+  title={Automatic audio morphing},
+  author={M. Slaney and M. Covell and B. Lassiter},
+  journal={1996 IEEE International Conference on Acoustics, Speech, and Signal Processing Conference Proceedings},
+  year={1996},
+  volume={2},
+  pages={1001-1004 vol. 2},
+  url={http://ieeexplore.ieee.org/stamp/stamp.jsp?tp=\&arnumber=543292}
+}
+
+@article{Chu2026Mix2MorphLSC,
+  title={Mix2Morph: Learning Sound Morphing from Noisy Mixes},
+  author={Annie Chu and Hugo Flores Garc{\'i}a and Oriol Nieto and Justin Salamon and Bryan Pardo and Prem Seetharaman},
+  journal={ArXiv},
+  year={2026},
+  volume={abs/2601.20426},
+  url={https://api.semanticscholar.org/CorpusId:285101466}
+}
+
+@article{Mancusi2024LatentDBD,
+  title={Latent Diffusion Bridges for Unsupervised Musical Audio Timbre Transfer},
+  author={Michele Mancusi and Yurii Halychanskyi and K. Cheuk and Chieh-Hsin Lai and S. Uhlich and Junghyun Koo and Marco A. Mart'inez-Ram'irez and Wei-Hsiang Liao and Giorgio Fabbro and Yuhki Mitsufuji},
+  journal={ICASSP 2025 - 2025 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)},
+  year={2024},
+  pages={1-5},
+  url={https://api.semanticscholar.org/CorpusId:272551039}
+}
+
+@article{Chen2025GuitarTME,
+  title={Guitar Tone Morphing by Diffusion-Based Model},
+  author={Kuan-Yu Chen and Kuan-Lin Chen and Yu-Chieh Yu and Jian-Jiun Ding},
+  journal={2025 Asia Pacific Signal and Information Processing Association Annual Summit and Conference (APSIPA ASC)},
+  year={2025},
+  pages={329-333},
+  url={https://api.semanticscholar.org/CorpusId:281950991}
+}
+@article{Engel2017NeuralASR,
+  title={Neural Audio Synthesis of Musical Notes with WaveNet Autoencoders},
+  author={Jesse Engel and Cinjon Resnick and Adam Roberts and S. Dieleman and Mohammad Norouzi and D. Eck and K. Simonyan},
+  journal={ArXiv},
+  year={2017},
+  volume={abs/1704.01279},
+  url={https://api.semanticscholar.org/CorpusId:3697399}
+}
+
+
+Revisar también magenta NSynth: https://magenta.withgoogle.com/nsynth y https://magenta.withgoogle.com/nsynth-instrument.
