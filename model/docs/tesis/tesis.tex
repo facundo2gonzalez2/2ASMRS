@@ -12,6 +12,7 @@
 \usepackage{tikz}
 \usetikzlibrary{decorations.pathreplacing, positioning}
 \usepackage{url}
+\usepackage[hidelinks]{hyperref}
 
 \begin{document}
 
@@ -376,7 +377,7 @@ Con el objetivo de encontrar el tamaño ideal, experimentamos con dimensiones $2
 \caption{Error de Reconstrucción (MSE) vs Dimensión de espacio latente, $\beta=0$}
 \centering
 \label{fig:mse_vs_dim}
-\includegraphics[scale=0.59]{imgs/01_arquitectura/5_recon_evolution_no_beta.png}
+\includegraphics[scale=0.53]{imgs/01_arquitectura/5_recon_evolution_no_beta.png}
 \end{figure}
 
 Analizando los resultados de las figuras~\ref{fig:mse_vs_dim} y~\ref{fig:mse_vs_dim_prom} observamos que, con un espacio latente de dimensión $4$, obtenemos una ganancia significativa respecto a las dimensiones $2$ y $3$, mientras que aumentar el tamaño a $6$ u $8$ no aporta una mejora relevante.
@@ -387,7 +388,7 @@ Nos interesa también verificar este comportamiento para la arquitectura $\beta$
 \caption{Error de Reconstrucción promedio general}
 \centering
 \label{fig:mse_vs_dim_prom}
-\includegraphics[scale=0.59]{imgs/01_arquitectura/2_val_loss_mean_std_with_base.png}
+\includegraphics[scale=0.53]{imgs/01_arquitectura/2_val_loss_mean_std_with_base.png}
 \end{figure}
 
 En efecto, lo observado para los modelos AE (con $\beta=0$) se cumple también con $\beta$ activado. Resta verificar el comportamiento de la divergencia KL en los modelos $\beta$-VAE para los distintos tamaños de espacio latente, presentado en la figura~\ref{fig:kl_vs_dim}.
@@ -396,7 +397,7 @@ En efecto, lo observado para los modelos AE (con $\beta=0$) se cumple también c
 \caption{Divergencia KL vs Dimensión de espacio latente, $\beta=0.001$}
 \centering
 \label{fig:kl_vs_dim}
-\includegraphics[scale=0.59]{imgs/01_arquitectura/4_beta_kl_evolution.png}
+\includegraphics[scale=0.53]{imgs/01_arquitectura/4_beta_kl_evolution.png}
 \end{figure}
 
 Efectivamente, el salto más significativo se encuentra entre las dimensiones $2$ y $4$, y a partir de allí la KL sigue disminuyendo pero con una ganancia relativa menor.
@@ -413,32 +414,25 @@ Corroboramos así que todos los modelos reportan el mismo comportamiento frente 
 
 \subsection{Experimentación $\beta$-VAE}
 
-Definido el tamaño del espacio latente, resta fijar el grado de regularización del mismo. Con el fin de regularizar el espacio latente sin degradar excesivamente la calidad de la reconstrucción, buscamos determinar un valor adecuado para el hiperparámetro $\beta$. Para ello, realizamos un barrido experimental evaluando cinco valores distintos: $\beta \in [0, 10^{-5}, 10^{-4}, 10^{-3}, 10^{-2}]$. Para cada uno de ellos, se calculó el promedio del error de reconstrucción (MSE) y de la divergencia KL sobre el último $10\%$ del entrenamiento. A partir de estos resultados, construimos las curvas de compromiso entre ambos términos que se exponen en la figura~\ref{fig:pareto}, donde el punto de interés es el que se ubica en el "codo" de la curva.
+Definido el tamaño del espacio latente, resta fijar el grado de regularización del mismo. Con el fin de regularizar el espacio latente sin degradar excesivamente la calidad de la reconstrucción, buscamos determinar un valor adecuado para el hiperparámetro $\beta$. Para ello, realizamos un barrido experimental evaluando cinco valores distintos: $\beta \in [0, 10^{-5}, 10^{-4}, 10^{-3}, 10^{-2}]$. Para cada uno de ellos, se calculó el promedio del error de reconstrucción (MSE) y de la divergencia KL sobre los datos de validación. A partir de estos resultados, construimos las curvas de compromiso entre ambos términos, que analizamos a continuación en dos representaciones complementarias: una en escala lineal (figura~\ref{fig:pareto-lineal}) y otra en escala logarítmica en ambos ejes (figura~\ref{fig:pareto-loglog}). En ambas, el punto de interés es el que se ubica en el ''codo" de la curva.
 
 \begin{figure}[H]
-\makebox[\textwidth][c]{%
-    \begin{minipage}{1.3\textwidth} % Ajustá este 1.2 para darles más o menos ancho total
-        \begin{subfigure}{.48\linewidth}
-            \centering
-            \includegraphics[width=\linewidth]{imgs/02_comparacion_beta_vae/pareto_tradeoff_linear.png}
-            \caption{Escala lineal (excluyendo $\beta=0$).}
-            \label{fig:pareto-lineal}
-        \end{subfigure}\hfill
-        \begin{subfigure}{.48\linewidth}
-            \centering
-            \includegraphics[width=\linewidth]{imgs/02_comparacion_beta_vae/pareto_tradeoff_loglog.png}
-            \caption{Escala Logarítmica en ambos ejes (incluyendo $\beta=0$).}
-            \label{fig:pareto-loglog}
-        \end{subfigure}
-    \end{minipage}%
-}
-\caption{Curva de compromiso entre error de reconstrucción y divergencia KL para la selección del hiperparámetro $\beta$.}
-\label{fig:pareto}
+\centering
+\includegraphics[width=.595\linewidth]{imgs/02_comparacion_beta_vae/pareto_tradeoff_linear.png}
+\caption{Curva de compromiso entre error de reconstrucción y divergencia KL en escala lineal (excluyendo $\beta=0$) para la selección del hiperparámetro $\beta$.}
+\label{fig:pareto-lineal}
 \end{figure}
 
-La comparación entre ambas representaciones resulta de especial utilidad para analizar el impacto de desactivar la regularización ($\beta=0$). En la figura~\ref{fig:pareto-lineal}, la visualización en escala lineal obligó a excluir el caso $\beta=0$ debido a que la divergencia KL en este escenario alcanza valores sumamente elevados que distorsionan la escala del eje, agrupando al resto de los puntos contra el eje de ordenadas. Sin embargo, al aplicar una escala Log-Log en ambos ejes (figura~\ref{fig:pareto-loglog}), logramos incorporar este caso límite y visualizar en un mismo plano magnitudes que difieren en varios órdenes de escala.
+En la representación en escala lineal de la figura~\ref{fig:pareto-lineal} fue necesario excluir el caso $\beta=0$, ya que la divergencia KL en ese escenario alcanza valores sumamente elevados que distorsionan la escala del eje y agrupan al resto de los puntos contra el eje de ordenadas. Con los cuatro valores restantes, en cambio, la curva de compromiso se aprecia con claridad y permite identificar el codo en $\beta=0.001$. En particular, se observa que aumentar la regularización a $\beta=0.01$ penaliza excesivamente la fidelidad del modelo, incrementando notablemente el error de reconstrucción sin una reducción proporcional de la divergencia KL.
 
-A partir de este análisis, se observa claramente que $\beta=0.001$ se sitúa en el "codo" de la curva, representando el mejor punto de compromiso (\textit{trade-off}) del sistema. Por un lado, aumentar la regularización a $\beta=0.01$ penaliza excesivamente la fidelidad del modelo, incrementando notablemente el error de reconstrucción. Por el otro, relajar la regularización a $\beta=0.0001$ o $\beta=0.00001$ genera un incremento desmedido en la divergencia KL, aproximándose al comportamiento desregulado de un autoencoder tradicional ($\beta=0$) sin aportar una mejora sustancial en el error de reconstrucción. Este análisis cuantitativo se complementó con escuchas subjetivas de las reconstrucciones obtenidas con $\beta=0.001$, confirmando que el nivel de error alcanzado bajo esta configuración permite reproducir los audios de entrenamiento de forma prácticamente indistinguible respecto a los resultados del caso $\beta=0$.
+\begin{figure}[H]
+\centering
+\includegraphics[width=.595\linewidth]{imgs/02_comparacion_beta_vae/pareto_tradeoff_loglog.png}
+\caption{Curva de compromiso entre error de reconstrucción y divergencia KL en escala logarítmica en ambos ejes (incluyendo $\beta=0$) para la selección del hiperparámetro $\beta$.}
+\label{fig:pareto-loglog}
+\end{figure}
+
+Para incorporar el caso límite $\beta=0$ recurrimos a la escala logarítmica en ambos ejes de la figura~\ref{fig:pareto-loglog}, que permite visualizar en un mismo plano magnitudes que difieren en varios órdenes de escala. Esta representación completa el análisis del extremo opuesto del compromiso: relajar la regularización a $\beta=0.0001$ o $\beta=0.00001$ genera un incremento desmedido en la divergencia KL, aproximándose al comportamiento desregulado de un autoencoder tradicional ($\beta=0$) sin aportar una mejora sustancial en el error de reconstrucción. En conjunto, ambas representaciones confirman que $\beta=0.001$ se sitúa en el codo de la curva y representa el mejor punto de compromiso (\textit{trade-off}) del sistema. Este análisis cuantitativo se complementó con escuchas subjetivas de las reconstrucciones obtenidas con $\beta=0.001$, confirmando que el nivel de error alcanzado bajo esta configuración permite reproducir los audios de entrenamiento de forma muy similar respecto a los resultados del caso $\beta=0$.
 
 \newpage
 \section{Análisis del Espacio Latente}
@@ -511,54 +505,49 @@ El propósito de este experimento no es comparar configuraciones de entrenamient
 Nuestra hipótesis es que la similitud coseno se comportará de manera adecuada en el escenario estático del vector aleatorio, pero resultará más errática al seguir una trayectoria del espacio latente, mientras que FAD debería mantenerse estable en ambos casos. Para poner a prueba las métricas bajo condiciones distintas, incluimos dos configuraciones de entrenamiento de comportamiento opuesto: \textit{Scratch-AE} ($\beta=0$), que anticipamos como desfavorable, y \textit{Checkpoint-$\beta$-VAE} ($\beta=0.001$), que esperamos favorable.
 
 \begin{figure}[H]
-\makebox[\textwidth][c]{%
-    \begin{minipage}{1.3\textwidth}
-        \begin{subfigure}{.48\linewidth}
-            \centering
-            \includegraphics[width=\linewidth]{imgs/04_similitud/sim_scratch_no_beta_zrandom.png}
-            \caption{Configuración: \textit{Scratch-AE} ($\beta = 0$).}
-        \end{subfigure}\hfill
-        \begin{subfigure}{.48\linewidth}
-            \centering
-            \includegraphics[width=\linewidth]{imgs/04_similitud/sim_checkpoint_beta_zrandom.png}
-            \caption{Configuración: \textit{Checkpoint-$\beta$-VAE} ($\beta = 0.001$).}
-        \end{subfigure}
-    \end{minipage}%
-}
-\caption{Comparación de métricas (Similitud Coseno vs. FAD) partiendo de un vector latente $Z$ aleatorio.}
-\label{fig:cos_fad_zrandom}
+\centering
+\includegraphics[width=.75\linewidth]{imgs/04_similitud/sim_scratch_no_beta_zrandom.png}
+\caption{Comparación de métricas (Similitud Coseno vs. FAD) partiendo de un vector latente $Z$ aleatorio, para la configuración \textit{Scratch-AE} ($\beta = 0$).}
+\label{fig:cos_fad_zrandom_scratch}
 \end{figure}
-Los resultados presentados en la Figura \ref{fig:cos_fad_zrandom} ilustran el comportamiento partiendo de un $Z$ aleatorio. Para la configuración \textit{Scratch-AE}, es esperable que no haya una transición suave (ya que interpolamos espacios latentes disjuntos y sin regularizar); no obstante, se observa que la similitud coseno presenta picos y fluctuaciones erráticas, mientras que FAD se mantiene notablemente más estable. Por el contrario, en la configuración \textit{Checkpoint-$\beta$-VAE}, ambas métricas muestran el crecimiento suave y sostenido esperado, presentando una alta correlación en este escenario estático.
+
+Partiendo de un vector latente $Z$ aleatorio, comenzamos por la configuración \textit{Scratch-AE} (Figura~\ref{fig:cos_fad_zrandom_scratch}), que anticipamos como desfavorable. En este caso es esperable que no haya una transición suave, ya que interpolamos espacios latentes disjuntos y sin regularizar; no obstante, se observa que la similitud coseno presenta picos y fluctuaciones erráticas, mientras que FAD se mantiene notablemente más estable.
 
 \begin{figure}[H]
-\makebox[\textwidth][c]{%
-    \begin{minipage}{1.3\textwidth}
-        \begin{subfigure}{.48\linewidth}
-            \centering
-            \includegraphics[width=\linewidth]{imgs/04_similitud/sim_scratch_no_beta_zencoded.png}
-            \caption{Configuración: \textit{Scratch-AE} ($\beta = 0$).}
-        \end{subfigure}\hfill
-        \begin{subfigure}{.48\linewidth}
-            \centering
-            \includegraphics[width=\linewidth]{imgs/04_similitud/sim_checkpoint_beta_zencoded.png}
-            \caption{Configuración: \textit{Checkpoint-$\beta$-VAE} ($\beta = 0.001$).}
-        \end{subfigure}
-    \end{minipage}%
-}
-\caption{Comparación de métricas (Similitud Coseno vs. FAD) partiendo de un vector latente $Z$ codificado desde un audio real.}
-\label{fig:cos_fad_zencoded}
+\centering
+\includegraphics[width=.7\linewidth]{imgs/04_similitud/sim_checkpoint_beta_zrandom.png}
+\caption{Comparación de métricas (Similitud Coseno vs. FAD) partiendo de un vector latente $Z$ aleatorio, para la configuración \textit{Checkpoint-$\beta$-VAE} ($\beta = 0.001$).}
+\label{fig:cos_fad_zrandom_checkpoint}
 \end{figure}
 
-Al evaluar con un vector latente $Z$ proveniente de un audio real (Figura \ref{fig:cos_fad_zencoded}), las deficiencias de la similitud coseno se hacen más evidentes. En la configuración \textit{Scratch-AE}, la similitud coseno sufre una alta variación y dispersión. FAD, en cambio, captura correctamente que el modelo no logra asimilarse al timbre destino hasta llegar a $\alpha \approx 0.95$.
+En contraste, la configuración \textit{Checkpoint-$\beta$-VAE} (Figura~\ref{fig:cos_fad_zrandom_checkpoint}) exhibe el comportamiento favorable esperado: ambas métricas muestran el crecimiento suave y sostenido previsto, presentando una alta correlación entre sí en este escenario estático.
 
-En la configuración \textit{Checkpoint-$\beta$-VAE}, FAD traza una curva de crecimiento predecible y suave con baja desviación estándar, confirmando que la interpolación es efectiva. La similitud coseno, aunque logra marcar la tendencia general de transferencia tímbrica, presenta caídas anómalas (e.g., en $\alpha=0.20$) y mayor dispersión. Dado que FAD demostró ser más robusta y consistente frente a distintas entradas y configuraciones, nos basaremos en ella para el resto de los experimentos de esta sección.
+\begin{figure}[H]
+\centering
+\includegraphics[width=.7\linewidth]{imgs/04_similitud/sim_scratch_no_beta_zencoded.png}
+\caption{Comparación de métricas (Similitud Coseno vs. FAD) partiendo de un vector latente $Z$ codificado desde un audio real, para la configuración \textit{Scratch-AE} ($\beta = 0$).}
+\label{fig:cos_fad_zencoded_scratch}
+\end{figure}
+
+Al evaluar con un vector latente $Z$ proveniente de un audio real, las deficiencias de la similitud coseno se hacen más evidentes. En la configuración \textit{Scratch-AE} (Figura~\ref{fig:cos_fad_zencoded_scratch}), la similitud coseno sufre una alta variación y dispersión. FAD, en cambio, captura correctamente que el modelo no logra asimilarse al timbre destino hasta llegar a $\alpha \approx 0.95$.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=.75\linewidth]{imgs/04_similitud/sim_checkpoint_beta_zencoded.png}
+\caption{Comparación de métricas (Similitud Coseno vs. FAD) partiendo de un vector latente $Z$ codificado desde un audio real, para la configuración \textit{Checkpoint-$\beta$-VAE} ($\beta = 0.001$).}
+\label{fig:cos_fad_zencoded_checkpoint}
+\end{figure}
+
+En la configuración \textit{Checkpoint-$\beta$-VAE} (Figura~\ref{fig:cos_fad_zencoded_checkpoint}), FAD traza una curva de crecimiento predecible y suave con baja desviación estándar, confirmando que la interpolación es efectiva. La similitud coseno, aunque logra marcar la tendencia general de transferencia tímbrica, presenta caídas anómalas (por ejemplo en $\alpha=0.20$) y mayor dispersión. Dado que FAD demostró ser más robusta y consistente frente a distintas entradas y configuraciones, nos basaremos en ella para el resto de los experimentos de esta sección.
+
+\newpage
 
 \subsection{Experimentos de Interpolación}
 
 Habiendo validado la métrica, procedemos a verificar si la transferencia tímbrica hacia un instrumento de destino (piano) se sostiene independientemente del instrumento de origen (bajo, guitarra, voz). Evaluamos múltiples muestras de vectores $Z$ para cada caso y graficamos el promedio de la similitud FAD junto con su dispersión.
 
 \begin{figure}[H]
-\makebox[\textwidth][c]{\includegraphics[width=1.2\textwidth]{imgs/04_similitud/sim_aggregated_to_piano.png}}
+\makebox[\textwidth][c]{\includegraphics[width=.75\textwidth]{imgs/04_similitud/sim_aggregated_to_piano.png}}
 \caption{Comparación agregada entre configuraciones, interpolando desde múltiples instrumentos hacia piano.}
 \label{fig:sim_aggregated}
 \end{figure}
@@ -566,24 +555,17 @@ Habiendo validado la métrica, procedemos a verificar si la transferencia tímbr
 Como se observa en la Figura \ref{fig:sim_aggregated}, existe una transferencia tímbrica en todos los escenarios, pero las diferencias de rendimiento entre configuraciones son notables. La curva de mejor comportamiento corresponde a \textit{Checkpoint-$\beta$-VAE} ($\beta=0.001$), seguida por \textit{Scratch-$\beta$-VAE}. Esto sugiere fuertemente que la regularización impuesta por $\beta>0$ para suavizar el espacio latente es el factor de mayor impacto para lograr interpolaciones de alta calidad. Secundariamente, compartir un punto de partida común en los pesos del modelo (\textit{Checkpoint}) aporta una mejora adicional frente a los modelos entrenados desde cero.
 
 \begin{figure}[H]
-\makebox[\textwidth][c]{%
-    \begin{minipage}{1.3\textwidth}
-        \begin{subfigure}{.48\linewidth}
-            \centering
-            \includegraphics[width=\linewidth]{imgs/04_similitud/desglose_aggregated_checkpoint_beta.png}
-            \caption{\textit{Checkpoint-$\beta$-VAE} ($\beta=0.001$).}
-            \label{fig:sim_aggregated_per_instrument_checkpoint}
-        \end{subfigure}\hfill
-        \begin{subfigure}{.48\linewidth}
-            \centering
-            \includegraphics[width=\linewidth]{imgs/04_similitud/desglose_aggregated_scratch_no_beta.png}
-            \caption{\textit{Scratch-AE} ($\beta=0$).}
-            \label{fig:sim_aggregated_per_instrument_scratch}
-        \end{subfigure}
-    \end{minipage}%
-}
-\caption{Desglose por instrumento de origen para las distintas configuraciones evaluadas.}
-\label{fig:sim_aggregated_per_instrument}
+\centering
+\includegraphics[width=.72\linewidth]{imgs/04_similitud/desglose_aggregated_checkpoint_beta.png}
+\caption{Desglose por instrumento de origen para la configuración \textit{Checkpoint-$\beta$-VAE} ($\beta=0.001$).}
+\label{fig:sim_aggregated_per_instrument_checkpoint}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=.72\linewidth]{imgs/04_similitud/desglose_aggregated_scratch_no_beta.png}
+\caption{Desglose por instrumento de origen para la configuración \textit{Scratch-AE} ($\beta=0$).}
+\label{fig:sim_aggregated_per_instrument_scratch}
 \end{figure}
 
 Al desglosar los resultados (Figuras \ref{fig:sim_aggregated_per_instrument_checkpoint} y \ref{fig:sim_aggregated_per_instrument_scratch}), confirmamos que este patrón es consistente para cualquier instrumento de origen. Queda en evidencia que los modelos sin regularizar (\textit{Scratch-AE}) fracasan en realizar una transición gradual, retrasando el cambio tímbrico hacia los valores extremos de $\alpha$.
@@ -591,7 +573,7 @@ Al desglosar los resultados (Figuras \ref{fig:sim_aggregated_per_instrument_chec
 Hasta aquí fijamos el piano como único instrumento de destino. Para descartar que el comportamiento observado dependa de esa elección, repetimos el análisis tomando cada instrumento como destino y, en cada caso, los tres instrumentos restantes como origen. Promediando sobre todas estas combinaciones obtenemos la comparación de la figura~\ref{fig:sim_aggregated_all_instruments}.
 
 \begin{figure}[H]
-\makebox[\textwidth][c]{\includegraphics[width=1.3\textwidth]{imgs/04_similitud/sim_aggregated_to_all_instruments.png}}
+\makebox[\textwidth][c]{\includegraphics[width=.75\textwidth]{imgs/04_similitud/sim_aggregated_to_all_instruments.png}}
 \caption{Comparación agregada entre configuraciones, interpolando desde múltiples instrumentos hacia todos los instrumentos.}
 \label{fig:sim_aggregated_all_instruments}
 \end{figure}
@@ -603,7 +585,7 @@ Para dar el análisis por concluido, resta verificar una última condición: a m
 Se espera que, a medida que $\alpha$ crezca, la similitud con el instrumento B aumente y la del instrumento A disminuya, cruzándose aproximadamente en $\alpha=0.5$. Simultáneamente, la similitud con el instrumento testigo debería mantenerse constante. Para este experimento definimos piano como instrumento A, guitarra como instrumento B, y voz como instrumento testigo.
 
 \begin{figure}[H]
-\makebox[\textwidth][c]{\includegraphics[width=1.3\textwidth]{imgs/plots/fad_random_latent_gaussian_piano_to_guitar.png}}
+\makebox[\textwidth][c]{\includegraphics[width=\textwidth]{imgs/plots/fad_random_latent_gaussian_piano_to_guitar.png}}
 \caption{Transición cruzada de piano a guitarra. Comparación entre orígenes (\textit{Checkpoint} vs. \textit{Scratch}) y regularización ($\beta$). La voz actúa como instrumento testigo.}
 \label{fig:transicion_piano_guitarra}
 \end{figure}
@@ -613,6 +595,25 @@ Los resultados presentados en la Figura \ref{fig:transicion_piano_guitarra} corr
 Por el contrario, los modelos entrenados desde \textit{Scratch} exhiben un comportamiento indeseable. Aún con $\beta=0.001$, la transferencia es poco consistente para valores intermedios de $\alpha$; y con $\beta=0$, la transición es prácticamente inexistente hasta $\alpha>0.8$. El caso de \textit{Checkpoint-AE} ($\beta=0$) logra la transferencia deseada, pero de forma mucho más abrupta, provocando además fluctuaciones erráticas en la curva del instrumento testigo.
 
 En conclusión, estos experimentos confirman empíricamente que la arquitectura más robusta para garantizar una transferencia tímbrica predecible, gradual e independiente en la interpolación de pesos es la basada en modelos con inicialización común y espacios latentes regularizados (\textit{Checkpoint} con $\beta=0.001$).
+
+\newpage
+
+\subsection{Ejemplos de audio}
+
+Para complementar el análisis cuantitativo con una valoración perceptual, ponemos a disposición tres ejemplos de audio generados con el sistema, accesibles públicamente a través de los siguientes enlaces:
+
+\begin{itemize}
+    \item \textbf{Transición continua de voz a piano.} Audio obtenido barriendo el coeficiente de interpolación $\alpha$ de $0$ a $1$ sobre los pesos de dos modelos especializados, de modo que el timbre evoluciona de forma continua desde la voz (modelo origen) hacia el piano (modelo destino). Se emplea la configuración \textit{Checkpoint-$\beta$-VAE} ($\beta=0.001$), la de mejor desempeño según los experimentos anteriores.\\
+    \url{https://drive.google.com/file/d/1EYOZBdlWy43A6llsoD5yIvSeZali93yI/view?usp=sharing}
+
+    \item \textbf{Transición continua de guitarra a piano.} Ejemplo análogo al anterior, con la misma configuración \textit{Checkpoint-$\beta$-VAE}, tomando la guitarra como modelo origen y el piano como destino.\\
+    \url{https://drive.google.com/file/d/1eSDCLBd_SoxXbaXlolphe5Y2nrI0whpW/view?usp=sharing}
+
+    \item \textbf{\emph{Morphing} de audio de voz a guitarra.} Ejemplo de carácter más experimental que ilustra una aplicación posible de la técnica sobre audio real. En lugar de sintetizar un timbre estático, se codifican dos fragmentos de audio (voz y guitarra) y se genera una secuencia en tres etapas: la voz original, una transición en la que se combinan las trayectorias de ambos audios en el espacio latente mientras $\alpha$ evoluciona de $0$ a $1$ interpolando los pesos de los modelos, y finalmente la guitarra.\\
+    \url{https://drive.google.com/file/d/1nzf-B3jTF1OhAnQE6EYLGAIaHuG8vimf/view?usp=sharing}
+\end{itemize}
+
+Los dos primeros ejemplos corresponden a transiciones tímbricas generadas por interpolación de pesos entre modelos especializados, mientras que el tercero constituye un ejemplo de \emph{morphing} entre audios reales. En conjunto, permiten apreciar de forma auditiva el comportamiento gradual de las transiciones descrito por las métricas presentadas en esta sección.
 
 \chapter{Conclusiones}
 \label{cap:conclusiones}
