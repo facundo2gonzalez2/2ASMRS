@@ -73,13 +73,13 @@ FAMILY_STYLES = [
 
 
 METRIC_YLABELS = {
-    "cosine": "Similitud (coseno)",
-    "fad": "Similitud (FAD)",
+    "cosine": "Cosine similarity",
+    "fad": "FAD similarity",
 }
 
 
 METRIC_DISPLAY_NAMES = {
-    "cosine": "coseno",
+    "cosine": "Cosine",
     "fad": "FAD",
 }
 
@@ -1195,7 +1195,7 @@ def generate_plots(
 
             metric_display = METRIC_DISPLAY_NAMES.get(metric, metric)
             fig.suptitle(
-                f"Similitud ({metric_display}) | {source_instrument} → {target_instrument}",
+                f"{metric_display} similarity | {source_instrument} → {target_instrument}",
                 fontsize=13,
             )
             fig.tight_layout()
@@ -1292,7 +1292,7 @@ def generate_sample_plots(
 
             metric_display = METRIC_DISPLAY_NAMES.get(metric, metric)
             fig.suptitle(
-                f"Similitud ({metric_display}) por muestra | {source_instrument} → {target_instrument}",
+                f"{metric_display} similarity per sample | {source_instrument} → {target_instrument}",
                 fontsize=13,
             )
             fig.tight_layout()
