@@ -71,51 +71,7 @@ def _autogain(audio, target_peak=0.9):
     return audio
 
 
-def main():
-    # ── Config ──────────────────────────────────────────
-    instrument_a = "voice"
-    instrument_b = "guitar"
-    # audio_a = "data_audio_morphing/voz_new2_trimmed.wav"
-    # audio_b = "data_audio_morphing/piano_new2_trimmed.wav"
-    audio_a = None
-    audio_b = None
-    duration_a = 2  # seconds
-    duration_transition = 8
-    duration_b = 2
-    source = "checkpoint"  # "checkpoint" or "scratch"
-    beta = "beta_0.001"  # "beta_0.001" or "no_beta"
-    interpolation_mode = "slerp"  # "linear" or "slerp"
-    phase_reconstruction = "pghi"  # "griffinlim", "pghi", or "random"
-    output_dir = f"audio_morphing_output_test_{phase_reconstruction}"
-    # ────────────────────────────────────────────────────
-
-    if audio_a is None:
-        audio_a = _discover_audio(instrument_a)
-    if audio_b is None:
-        audio_b = _discover_audio(instrument_b)
-    print(f"Audio A: {audio_a}")
-    print(f"Audio B: {audio_b}")
-
-    output_path = MODEL_DIR / output_dir
-    output_path.mkdir(parents=True, exist_ok=True)
-
-    print(f"Cargando modelo {instrument_a}...")
-    model_a, hps_a = _load_instrument_model(instrument_a, source, beta)
-    print(f"Cargando modelo {instrument_b}...")
-    model_b, hps_b = _load_instrument_model(instrument_b, source, beta)
-
-    assert hps_a["encoder_layers"] == hps_b["encoder_layers"], "Arquitecturas no coinciden"
-    assert hps_a["decoder_layers"] == hps_b["decoder_layers"], "Arquitecturas no coinciden"
-    assert hps_a["latent_dim"] == hps_b["latent_dim"], "Arquitecturas no coinciden"
-
-    print(f"Codificando audio A ({instrument_a})...")
-    Z_a, Xmax_a = _encode_audio_frames(model_a, hps_a, audio_a)
-    print(f"  Z_a shape: {Z_a.shape}, Xmax_a: {Xmax_a:.2f}")
-
-    print(f"Codificando audio B ({instrument_b})...")
-    Z_b, Xmax_b = _encode_audio_frames(model_b, hps_b, audio_b)
-    print(f"  Z_b shape: {Z_b.shape}, Xmax_b: {Xmax_b:.2f}")
-
+def _frame_counts(hps_a, Z_a, Z_b, duration_a, duration_transition, duration_b):
     fps = hps_a["target_sampling_rate"] / hps_a["hop_length"]
     n_a = int(round(duration_a * fps))
     n_transition = int(round(duration_transition * fps))
@@ -147,9 +103,12 @@ def main():
             f"se necesitan {needed_b} (transicion+fase3). Se clampeara al ultimo frame disponible."
         )
 
-    total_frames = n_a + n_transition + n_b
-    print(f"Frames: {n_a} (A) + {n_transition} (transicion) + {n_b} (B) = {total_frames} " f"({total_frames/fps:.1f}s)")
+    return fps, n_a, n_transition, n_b
 
+
+def _build_morphing_specgram(
+    model_a, model_b, hps_a, Z_a, Z_b, Xmax_a, Xmax_b, n_a, n_transition, n_b, interpolation_mode
+):
     # Phase 1: Pure A
     print("Fase 1: decodificando instrumento A...")
     with torch.no_grad():
@@ -232,16 +191,17 @@ def main():
             max=Xmax_b,
         )
 
-    # Concatenate and reconstruct audio
-    print(f"Reconstruyendo audio con {phase_reconstruction}...")
-    specgram = torch.cat([spec_a] + transition_frames + [spec_b], dim=0)
+    return torch.cat([spec_a] + transition_frames + [spec_b], dim=0)
 
+
+def _specgram_to_audio(specgram, hps_a, phase_reconstruction):
+    print(f"Reconstruyendo audio con {phase_reconstruction}...")
     try:
         audio = predict_audio(
             predicted_specgram=specgram,
             hps=hps_a,
             phase_option=phase_reconstruction,
-            frames=total_frames,
+            frames=specgram.shape[0],
             return_audio=True,
         )
     except Exception as err:
@@ -250,12 +210,67 @@ def main():
             predicted_specgram=specgram,
             hps=hps_a,
             phase_option="random",
-            frames=total_frames,
+            frames=specgram.shape[0],
             return_audio=True,
         )
 
     audio = np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore
-    audio = _autogain(audio)
+    return _autogain(audio)
+
+
+def main():
+    # ── Config ──────────────────────────────────────────
+    instrument_a = "voice"
+    instrument_b = "guitar"
+    # audio_a = "data_audio_morphing/voz_new2_trimmed.wav"
+    # audio_b = "data_audio_morphing/piano_new2_trimmed.wav"
+    audio_a = None
+    audio_b = None
+    duration_a = 2  # seconds
+    duration_transition = 8
+    duration_b = 2
+    source = "checkpoint"  # "checkpoint" or "scratch"
+    beta = "beta_0.001"  # "beta_0.001" or "no_beta"
+    interpolation_mode = "slerp"  # "linear" or "slerp"
+    phase_reconstruction = "pghi"  # "griffinlim", "pghi", or "random"
+    output_dir = f"audio_morphing_output_test_{phase_reconstruction}"
+    # ────────────────────────────────────────────────────
+
+    if audio_a is None:
+        audio_a = _discover_audio(instrument_a)
+    if audio_b is None:
+        audio_b = _discover_audio(instrument_b)
+    print(f"Audio A: {audio_a}")
+    print(f"Audio B: {audio_b}")
+
+    output_path = MODEL_DIR / output_dir
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    print(f"Cargando modelo {instrument_a}...")
+    model_a, hps_a = _load_instrument_model(instrument_a, source, beta)
+    print(f"Cargando modelo {instrument_b}...")
+    model_b, hps_b = _load_instrument_model(instrument_b, source, beta)
+
+    assert hps_a["encoder_layers"] == hps_b["encoder_layers"], "Arquitecturas no coinciden"
+    assert hps_a["decoder_layers"] == hps_b["decoder_layers"], "Arquitecturas no coinciden"
+    assert hps_a["latent_dim"] == hps_b["latent_dim"], "Arquitecturas no coinciden"
+
+    print(f"Codificando audio A ({instrument_a})...")
+    Z_a, Xmax_a = _encode_audio_frames(model_a, hps_a, audio_a)
+    print(f"  Z_a shape: {Z_a.shape}, Xmax_a: {Xmax_a:.2f}")
+
+    print(f"Codificando audio B ({instrument_b})...")
+    Z_b, Xmax_b = _encode_audio_frames(model_b, hps_b, audio_b)
+    print(f"  Z_b shape: {Z_b.shape}, Xmax_b: {Xmax_b:.2f}")
+
+    fps, n_a, n_transition, n_b = _frame_counts(hps_a, Z_a, Z_b, duration_a, duration_transition, duration_b)
+    total_frames = n_a + n_transition + n_b
+    print(f"Frames: {n_a} (A) + {n_transition} (transicion) + {n_b} (B) = {total_frames} " f"({total_frames/fps:.1f}s)")
+
+    specgram = _build_morphing_specgram(
+        model_a, model_b, hps_a, Z_a, Z_b, Xmax_a, Xmax_b, n_a, n_transition, n_b, interpolation_mode
+    )
+    audio = _specgram_to_audio(specgram, hps_a, phase_reconstruction)
 
     wav_name = f"morphing_{instrument_a}_to_{instrument_b}.wav"
     wav_path = output_path / wav_name

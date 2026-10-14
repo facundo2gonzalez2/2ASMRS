@@ -74,6 +74,9 @@ model/
 │   ├── interpolate.py         # SLERP/linear interpolation + FAD metrics & caching
 │   ├── interpolate_small.py   # SLERP interpolation (lightweight, cross-interpolation audios)
 │   ├── audio_morphing.py      # Audio-to-audio morphing (encode → interpolate models → decode)
+│   ├── crossfade_morphing.py  # Cross-fade baseline vs. morphing on the same two audios (WAVs + spectrogram plot)
+│   ├── crossfade_fad.py       # FAD-similarity curves vs α: spectrogram cross-fade baseline vs. VAE morphing
+│   ├── crossfade_fad_calibration.py  # FAD calibration on plain waveform cross-fades of original audio (no models)
 │   ├── umap_experiment.py     # UMAP latent space visualization
 │   ├── graficos_arquitectura.py          # Architecture / latent-dim comparison plots
 │   └── graficos_comparacion_beta-vae.py  # β-VAE comparison plots
@@ -139,6 +142,7 @@ The `fire` CLI exposes each top-level function directly. Key entry points:
 - `experiments/interpolate_small.py` — SLERP (Spherical Linear Interpolation) over model weights to smoothly morph between two trained instrument models. Falls back to LERP when weight vectors are near-parallel. Supports cross-interpolation audio generation.
 - `experiments/interpolate.py` — Adds FAD-based similarity metrics, caching, and the `interpolar_vae(model_a, model_b, alpha, ..., interpolation_mode)` helper consumed by `app.py` and `audio_morphing.py`.
 - `experiments/audio_morphing.py` — Encodes two real audio files, then produces a three-phase output: pure A → transition (blending both Z sequences and interpolating model weights with α going 0→1) → pure B. Writes WAV + YAML metadata into `audio_morphing_output_{mode}_{phase_reconstruction}/`. Config is inline at the top of `main()` (no CLI args).
+- `experiments/crossfade_morphing.py` / `experiments/crossfade_fad.py` — Naive cross-fade baseline (mixing spectrograms instead of interpolating Z + weights). The first renders the same A→B timeline as `audio_morphing.py` with both methods; the second computes FAD similarity vs α against source/target/witness references over N segment pairs (outputs in `crossfade_*_output*/`). `experiments/crossfade_fad_calibration.py` drops the models entirely: it cross-fades original waveform segments `(1−α)·A + α·B` and measures FAD similarity against the original A/B/witness segments, to calibrate the metric (for the thesis section that introduces FAD).
 
 ### Streamlit App (app.py)
 
