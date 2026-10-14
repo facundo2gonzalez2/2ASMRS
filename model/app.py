@@ -22,12 +22,42 @@ XMAX_DEFAULTS = {
     "voice": 140.0,
     "bass": 120.0,
 }
-INITIAL_Z = [0.0, 0.0, 0.0, 0.0]
-Z_INIT_BY_INSTRUMENT = {
-    "piano": [0.00015, 0.10694, -0.02233, -0.09316],
-    "guitar": [-0.00189, 0.17932, -0.11366, -0.21192],
-    "voice": [-0.02621, 0.05876, 0.19291, 0.61994],
-    "bass": [-0.0036, 0.14141, -0.00059, 0.06074],
+# Presets de Z por configuración "{training_source}_{beta_config}".
+# Sin beta el espacio latente no está centrado en 0 y cada modelo ocupa una región distinta.
+# checkpoint_beta_0.001: media del encoder (scripts/sample_z_init.py). Resto: medoides de clusters (KMeans)
+# de frames reales con energía alta y buena reconstrucción.
+Z_INIT_BY_CONFIG = {
+    "checkpoint_beta_0.001": {
+        "piano": [0.00015, 0.10694, -0.02233, -0.09316],
+        "guitar": [-0.00189, 0.17932, -0.11366, -0.21192],
+        "voice": [-0.02621, 0.05876, 0.19291, 0.61994],
+        "bass": [-0.0036, 0.14141, -0.00059, 0.06074],
+    },
+    "scratch_beta_0.001": {
+        "piano": [1.2668, 1.4984, -0.3676, -0.0029],
+        "guitar": [1.2152, 0.886, 0.0014, -0.0041],
+        "voice": [0.0003, 0.05, 0.1004, 1.6939],
+        "bass": [0.4265, -0.0011, 0.0034, -0.3605],
+    },
+    "checkpoint_no_beta": {
+        "piano": [5.8271, 4.5897, 7.4451, -5.1208],
+        "guitar": [-5.5814, 8.5572, 18.0094, -6.4851],
+        "voice": [5.2364, 3.3322, 7.2178, -4.9473],
+        "bass": [-7.512, 6.9719, 19.02, -5.975],
+    },
+    "scratch_no_beta": {
+        "piano": [10.918, 2.5677, 5.5528, 9.5771],
+        "guitar": [1.7153, 2.4796, 2.5315, -1.7724],
+        "voice": [0.7347, 2.3654, 0.1631, 0.5248],
+        "bass": [-3.5284, -1.6832, 3.3646, 1.8979],
+    },
+}
+# Rango (min, max) de cada slider Z por configuración: percentiles 1-99 del encoder sobre los 4 instrumentos + margen.
+Z_RANGE_BY_CONFIG = {
+    "checkpoint_beta_0.001": [(-3.0, 3.0)] * 4,
+    "scratch_beta_0.001": [(-3.0, 3.0)] * 4,
+    "checkpoint_no_beta": [(-13.0, 11.0), (-1.0, 18.0), (2.0, 24.0), (-21.0, 0.0)],
+    "scratch_no_beta": [(-8.0, 17.0), (-4.0, 6.0), (-3.0, 10.0), (-6.0, 14.0)],
 }
 
 NUM_FRAMES = 64
@@ -144,11 +174,23 @@ def generate_audio(model, hps, z_values, xmax, num_frames):
 # --- Callbacks ---
 
 
-def set_z_for_instrument(instrument_name):
+def get_config(use_beta: bool, use_checkpoint: bool):
+    beta_config = "beta_0.001" if use_beta else "no_beta"
+    training_source = "checkpoint" if use_checkpoint else "scratch"
+    return beta_config, training_source
+
+
+def set_z_for_instrument(instrument_name, config_key):
     """Setea los valores de Z en session_state para un instrumento dado."""
-    z_vals = Z_INIT_BY_INSTRUMENT[instrument_name]
+    z_vals = Z_INIT_BY_CONFIG[config_key][instrument_name]
     for i, val in enumerate(z_vals):
         st.session_state[f"z_{i}"] = val
+
+
+def on_config_change():
+    """Al cambiar de modelo, Z vuelve al preset del instrumento A (cada config ocupa otra región del espacio latente)."""
+    beta_config, training_source = get_config(st.session_state["use_beta"], st.session_state["use_checkpoint"])
+    set_z_for_instrument(st.session_state.get("inst_a", "piano"), f"{training_source}_{beta_config}")
 
 
 # --- UI ---
@@ -159,16 +201,16 @@ st.title("VAE Audio Interpolator")
 # Sidebar: solo configuración técnica
 with st.sidebar:
     st.header("Configuración")
-    use_beta = st.toggle("Beta encoding (beta_0.001)", value=True)
-    use_checkpoint = st.toggle("Desde checkpoint", value=True)
+    use_beta = st.toggle("Beta encoding (beta_0.001)", value=True, key="use_beta", on_change=on_config_change)
+    use_checkpoint = st.toggle("Desde checkpoint", value=True, key="use_checkpoint", on_change=on_config_change)
 
-    beta_config = "beta_0.001" if use_beta else "no_beta"
-    training_source = "checkpoint" if use_checkpoint else "scratch"
+    beta_config, training_source = get_config(use_beta, use_checkpoint)
+    config_key = f"{training_source}_{beta_config}"
 
 # Main: Instrumentos y alpha
 col_inst_a, col_inst_b, col_alpha = st.columns([1, 1, 2])
 with col_inst_a:
-    inst_a = st.selectbox("Instrumento A", INSTRUMENTS, index=0)
+    inst_a = st.selectbox("Instrumento A", INSTRUMENTS, index=0, key="inst_a")
 with col_inst_b:
     inst_b = st.selectbox("Instrumento B", INSTRUMENTS, index=1)
 with col_alpha:
@@ -186,23 +228,22 @@ for idx, instrument in enumerate(INSTRUMENTS):
         st.button(
             instrument.capitalize(),
             on_click=set_z_for_instrument,
-            args=(instrument,),
+            args=(instrument, config_key),
             key=f"btn_z_{instrument}",
         )
 
 # Inicializar Z en session_state si es la primera vez
 if "z_0" not in st.session_state:
-    z_defaults = Z_INIT_BY_INSTRUMENT.get("piano", INITIAL_Z)
-    for i, val in enumerate(z_defaults):
-        st.session_state[f"z_{i}"] = val
+    set_z_for_instrument("piano", config_key)
 
 # Sliders de Z
 z_values = []
-for i in range(4):
+for i, (z_min, z_max) in enumerate(Z_RANGE_BY_CONFIG[config_key]):
+    st.session_state[f"z_{i}"] = min(max(st.session_state[f"z_{i}"], z_min), z_max)
     val = st.slider(
         f"Z{i}",
-        -2.0,
-        2.0,
+        z_min,
+        z_max,
         step=0.001,
         key=f"z_{i}",
     )
