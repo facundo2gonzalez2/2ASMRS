@@ -157,6 +157,15 @@ def _report_and_autogain(audio: np.ndarray, target_peak: float = 0.9) -> np.ndar
             "Se aplico auto-gain por bajo nivel de salida: "
             f"gain={gain:.2f}, peak={new_peak:.6f}, rms={new_rms:.6f}"
         )
+    elif peak > 1.0:
+        # Al escribir el WAV en PCM se recortaría todo lo que supere 1.0.
+        gain = target_peak / peak
+        audio = audio * gain
+        new_rms = float(np.sqrt(np.mean(np.square(audio))))
+        print(
+            "Se atenuo la salida para evitar clipping: "
+            f"gain={gain:.3f}, peak={target_peak:.6f}, rms={new_rms:.6f}"
+        )
 
     return audio
 
@@ -170,12 +179,13 @@ def run_interpolation_latent_experiment(
     random_seed: int = 42,
     sampling_mode: str = "encoded",
     reference_audio_paths=None,
-    model_a_xmax: float = 230.0,
-    model_b_xmax: float = 120.0,
+    model_a_xmax: float | None = None,
+    model_b_xmax: float | None = None,
     start_alpha: float = 0.0,
     end_alpha: float = 1.0,
     start_z: Iterable[float] | torch.Tensor | None = None,
     end_z: Iterable[float] | torch.Tensor | None = None,
+    interpolation_mode: str = "linear",
 ):
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -216,6 +226,12 @@ def run_interpolation_latent_experiment(
     model_b.eval()
     model_a.decoder.eval()
     model_b.decoder.eval()
+
+    # Por defecto, el Xmax con el que se normalizó el dataset de entrenamiento de cada modelo.
+    if model_a_xmax is None:
+        model_a_xmax = float(hps_a["Xmax"])
+    if model_b_xmax is None:
+        model_b_xmax = float(hps_b["Xmax"])
 
     torch.manual_seed(random_seed)
     latent_dim = hps_a["latent_dim"]
@@ -273,7 +289,7 @@ def run_interpolation_latent_experiment(
             encoder_layers=hps_a["encoder_layers"],
             decoder_layers=hps_a["decoder_layers"],
             latent_dim=hps_a["latent_dim"],
-            interpolation_mode="linear",
+            interpolation_mode=interpolation_mode,
         )
         interpolated_model.eval()
 
@@ -336,6 +352,9 @@ def run_interpolation_latent_experiment(
                 "sampling_mode": sampling_mode,
                 "model_a_xmax": float(model_a_xmax),
                 "model_b_xmax": float(model_b_xmax),
+                "interpolation_mode": interpolation_mode,
+                "start_z": [float(v) for v in z_start.reshape(-1)],
+                "end_z": [float(v) for v in z_end.reshape(-1)],
             },
             file,
             sort_keys=False,
@@ -450,10 +469,12 @@ def cross_interpolation(
 
 
 if __name__ == "__main__":
-    instrument_a = "voice"
+    instrument_a = "piano"
     instrument_b = "guitar"
-    beta = True
-    sampling_mode = 0  # 0 para encoded, 1 para gaussian
+    source = "scratch"  # "checkpoint" o "scratch"
+    beta = False
+    interpolation_mode = "slerp"  # "linear" o "slerp"
+    sampling_mode = 0  # 0 para encoded, 1 para gaussian (solo se usa si no hay start_z/end_z)
 
     xmax_values = {
         "guitar": 130.0,
@@ -469,31 +490,55 @@ if __name__ == "__main__":
         "bass": [7e-05, 0.14084, -2e-05, 0.06244],
     }
 
-    Z_INIT_BY_INSTRUMENT_WITH_LOGVAR = {
-        "piano": [0.00015, 0.10694, -0.02233, -0.09316],
-        "guitar": [-0.00189, 0.17932, -0.11366, -0.21192],
-        "voice": [-0.02621, 0.05876, 0.19291, 0.61994],
-        "bass": [-0.0036, 0.14141, -0.00059, 0.06074],
+    # Copia de Z_INIT_BY_CONFIG en app.py: cada configuración ocupa otra región del espacio latente.
+    Z_INIT_BY_CONFIG = {
+        "checkpoint_beta_0.001": {
+            "piano": [0.00015, 0.10694, -0.02233, -0.09316],
+            "guitar": [-0.00189, 0.17932, -0.11366, -0.21192],
+            "voice": [-0.02621, 0.05876, 0.19291, 0.61994],
+            "bass": [-0.0036, 0.14141, -0.00059, 0.06074],
+        },
+        "scratch_beta_0.001": {
+            "piano": [1.2668, 1.4984, -0.3676, -0.0029],
+            "guitar": [1.2152, 0.886, 0.0014, -0.0041],
+            "voice": [0.0003, 0.05, 0.1004, 1.6939],
+            "bass": [0.4265, -0.0011, 0.0034, -0.3605],
+        },
+        "checkpoint_no_beta": {
+            "piano": [5.8271, 4.5897, 7.4451, -5.1208],
+            "guitar": [-5.5814, 8.5572, 18.0094, -6.4851],
+            "voice": [5.2364, 3.3322, 7.2178, -4.9473],
+            "bass": [-7.512, 6.9719, 19.02, -5.975],
+        },
+        "scratch_no_beta": {
+            "piano": [10.918, 2.5677, 5.5528, 9.5771],
+            "guitar": [1.7153, 2.4796, 2.5315, -1.7724],
+            "voice": [0.7347, 2.3654, 0.1631, 0.5248],
+            "bass": [-3.5284, -1.6832, 3.3646, 1.8979],
+        },
     }
 
-    model_a_path = f"inference_models/instruments_from_checkpoint/{instrument_a}_from_checkpoint_{'beta_0.001' if beta else 'no_beta'}/version_0"
-    model_b_path = f"inference_models/instruments_from_checkpoint/{instrument_b}_from_checkpoint_{'beta_0.001' if beta else 'no_beta'}/version_0"
+    beta_str = "beta_0.001" if beta else "no_beta"
+    z_presets = Z_INIT_BY_CONFIG[f"{source}_{beta_str}"]
 
-    output_dir = f"interpolation_audio_{'encoded' if sampling_mode == 0 else 'gaussian'}_{instrument_a}_to_{instrument_b}_{'beta_0.001' if beta else 'no_beta'}/"
+    model_a_path = f"inference_models/instruments_from_{source}/{instrument_a}_from_{source}_{beta_str}/version_0"
+    model_b_path = f"inference_models/instruments_from_{source}/{instrument_b}_from_{source}_{beta_str}/version_0"
 
+    output_dir = f"interpolation_audio_{source}_{beta_str}_{interpolation_mode}_{instrument_a}_to_{instrument_b}/"
+
+    # Sin model_a_xmax/model_b_xmax se usa el Xmax de entrenamiento guardado en hparams.yaml de cada modelo.
     run_interpolation_latent_experiment(
         model_a_path,
         model_b_path,
         output_dir,
         sampling_mode="encoded" if sampling_mode == 0 else "gaussian",
-        duration_seconds=15.0,
+        duration_seconds=20.0,
         random_seed=42,
-        model_a_xmax=xmax_values[instrument_a],
-        model_b_xmax=xmax_values[instrument_b],
         start_alpha=0.0,
         end_alpha=1.0,
-        start_z=Z_INIT_BY_INSTRUMENT_WITH_LOGVAR[instrument_a],
-        end_z=Z_INIT_BY_INSTRUMENT_WITH_LOGVAR[instrument_b],
+        start_z=z_presets[instrument_a],
+        end_z=z_presets[instrument_b],
+        interpolation_mode=interpolation_mode,
     )
 
     # cross_interpolation(

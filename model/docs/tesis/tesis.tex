@@ -540,6 +540,18 @@ Al evaluar con un vector latente $Z$ proveniente de un audio real, las deficienc
 
 En la configuración \textit{Checkpoint-$\beta$-VAE} (Figura~\ref{fig:cos_fad_zencoded_checkpoint}), FAD traza una curva de crecimiento predecible y suave con baja desviación estándar, confirmando que la interpolación es efectiva. La similitud coseno, aunque logra marcar la tendencia general de transferencia tímbrica, presenta caídas anómalas (por ejemplo en $\alpha=0.20$) y mayor dispersión. Dado que FAD demostró ser más robusta y consistente frente a distintas entradas y configuraciones, nos basaremos en ella para el resto de los experimentos de esta sección.
 
+Antes de utilizarla para medir la interpolación de los modelos, verificamos que FAD se comporte como esperamos en un caso controlado, cuyo resultado conocemos de antemano y en el que no interviene ningún modelo: un \textit{cross-fade} entre audios de dos timbres distintos. Dado un fragmento $A$ del instrumento origen y un fragmento $B$ del instrumento destino, construimos la mezcla $(1-\alpha)\,A + \alpha\,B$ directamente sobre las formas de onda originales, de modo que $\alpha$ controla la proporción de cada instrumento en el audio resultante. Evaluamos dos pares, piano a guitarra y voz a piano, con 20 pares de fragmentos de aproximadamente $1.5$ segundos ($64$ \textit{frames}) elegidos al azar del dataset, sin silencios. Para cada valor de $\alpha$ calculamos la similitud FAD de la mezcla con el fragmento $A$, con el fragmento $B$ y con un fragmento de un tercer instrumento ajeno a la mezcla, al que llamamos instrumento \textit{testigo} (voz y guitarra, respectivamente).
+
+\begin{figure}[H]
+\makebox[\textwidth][c]{\includegraphics[width=\textwidth]{imgs/04_similitud/fad_crossfade_calibration.png}}
+\caption{Similitud FAD en función de $\alpha$ para un \textit{cross-fade} $(1-\alpha)\,A + \alpha\,B$ entre audios originales, sin intervención de ningún modelo. Las curvas tenues corresponden a cada uno de los 20 pares de fragmentos, y las líneas y bandas a la media $\pm$ un desvío estándar.}
+\label{fig:fad_crossfade_calibration}
+\end{figure}
+
+Como se observa en la Figura~\ref{fig:fad_crossfade_calibration}, la métrica responde de la forma esperada. A medida que crece $\alpha$, la similitud con el instrumento origen desciende de manera monótona desde $1$, mientras que la similitud con el destino aumenta de forma aproximadamente simétrica, y ambas curvas se cruzan alrededor de $\alpha=0.5$. La similitud con el instrumento testigo, en cambio, se mantiene prácticamente constante a lo largo de toda la mezcla, lo que indica que la métrica no confunde la combinación de dos timbres con un tercero. Además, la dispersión entre pares de fragmentos es baja, por lo que este comportamiento no depende de los fragmentos particulares elegidos.
+
+Este experimento aporta también un piso de referencia para interpretar los valores de la métrica. En los extremos ($\alpha=0$ y $\alpha=1$), la similitud con el instrumento ausente de la mezcla es de aproximadamente $0.82$, el mismo nivel que obtiene el testigo; es decir, dos audios de instrumentos distintos alcanzan una similitud cercana a $0.82$, por lo que el rango útil de la métrica en nuestro problema se ubica aproximadamente entre ese valor y $1$. En conjunto, estos resultados verifican que FAD mide de forma gradual y consistente la presencia del timbre de cada instrumento, lo que nos permite utilizarla para evaluar la interpolación de los modelos en los experimentos siguientes.
+
 \newpage
 
 \subsection{Experimentos de Interpolación}
@@ -600,20 +612,41 @@ En conclusión, estos experimentos confirman empíricamente que la arquitectura 
 
 \subsection{Ejemplos de audio}
 
-Para complementar el análisis cuantitativo con una valoración perceptual, ponemos a disposición tres ejemplos de audio generados con el sistema, accesibles públicamente a través de los siguientes enlaces:
+Para complementar el análisis cuantitativo con una valoración perceptual, ponemos a disposición una serie de ejemplos de audio generados con el sistema, accesibles públicamente a través de los enlaces que se listan a continuación. Los agrupamos en dos conjuntos: transiciones tímbricas obtenidas por interpolación de pesos entre dos modelos, y un ejemplo de \emph{morphing} entre audios reales comparado con un \textit{cross-fade}.
+
+\paragraph{Interpolación entre dos modelos.} En estos ejemplos se barre el coeficiente de interpolación $\alpha$ de $0$ a $1$ sobre los pesos de dos modelos especializados, de modo que el timbre evoluciona de forma continua desde el instrumento del modelo origen hacia el del modelo destino.
 
 \begin{itemize}
-    \item \textbf{Transición continua de voz a piano.} Audio obtenido barriendo el coeficiente de interpolación $\alpha$ de $0$ a $1$ sobre los pesos de dos modelos especializados, de modo que el timbre evoluciona de forma continua desde la voz (modelo origen) hacia el piano (modelo destino). Se emplea la configuración \textit{Checkpoint-$\beta$-VAE} ($\beta=0.001$), la de mejor desempeño según los experimentos anteriores.\\
+    \item \textbf{Transición continua de voz a piano.} Se emplea la configuración \textit{Checkpoint-$\beta$-VAE} ($\beta=0.001$), la de mejor desempeño según los experimentos anteriores.\\
     \url{https://drive.google.com/file/d/1EYOZBdlWy43A6llsoD5yIvSeZali93yI/view?usp=sharing}
 
     \item \textbf{Transición continua de guitarra a piano.} Ejemplo análogo al anterior, con la misma configuración \textit{Checkpoint-$\beta$-VAE}, tomando la guitarra como modelo origen y el piano como destino.\\
     \url{https://drive.google.com/file/d/1eSDCLBd_SoxXbaXlolphe5Y2nrI0whpW/view?usp=sharing}
 
-    \item \textbf{\emph{Morphing} de audio de voz a guitarra.} Ejemplo de carácter más experimental que ilustra una aplicación posible de la técnica sobre audio real. En lugar de sintetizar un timbre estático, se codifican dos fragmentos de audio (voz y guitarra) y se genera una secuencia en tres etapas: la voz original, una transición en la que se combinan las trayectorias de ambos audios en el espacio latente mientras $\alpha$ evoluciona de $0$ a $1$ interpolando los pesos de los modelos, y finalmente la guitarra.\\
-    \url{https://drive.google.com/file/d/1nzf-B3jTF1OhAnQE6EYLGAIaHuG8vimf/view?usp=sharing}
+    \item \textbf{Transición continua de piano a guitarra (\textit{Scratch-$\beta$-VAE}).} Ejemplo de contraste generado con la configuración \textit{Scratch-$\beta$-VAE} ($\beta=0.001$), es decir, con modelos regularizados pero entrenados desde cero en lugar de partir del modelo base. Corresponde al mismo par de instrumentos analizado en la Figura~\ref{fig:transicion_piano_guitarra}, donde esta configuración mostró una transferencia poco consistente para valores intermedios de $\alpha$.\\
+    \url{https://drive.google.com/file/d/13rdDVCrwNFWcaPPINCZFoNJ-DAYwCm3v/view?usp=sharing}
+
+    \item \textbf{Transición continua de piano a guitarra (\textit{Scratch-AE}).} Mismo par de instrumentos con la configuración \textit{Scratch-AE} ($\beta=0$), la de peor desempeño en los experimentos. Como sin regularización cada modelo ocupa una región distinta del espacio latente, el vector $Z$ parte de un punto representativo de la región del piano en su modelo y llega a uno de la región de la guitarra en el suyo. En los valores intermedios de $\alpha$, los \textit{decoders} interpolados saturan buena parte del espectro y producen un sonido ruidoso de nivel muy superior al de los extremos, en lugar de un timbre intermedio.\\
+    \url{https://drive.google.com/file/d/14CRDhlVectmjLzDP5--KUlRY0CI5kBS7/view?usp=sharing}
 \end{itemize}
 
-Los dos primeros ejemplos corresponden a transiciones tímbricas generadas por interpolación de pesos entre modelos especializados, mientras que el tercero constituye un ejemplo de \emph{morphing} entre audios reales. En conjunto, permiten apreciar de forma auditiva el comportamiento gradual de las transiciones descrito por las métricas presentadas en esta sección.
+\paragraph{\emph{Morphing} neuronal frente a \textit{cross-fade}.} Este ejemplo, de carácter más experimental, ilustra una aplicación posible de la técnica sobre audio real y la contrasta con la transición más simple posible entre dos grabaciones. Partimos de dos pistas del dataset, una de voz (A) y una de guitarra (B), y generamos con ambos métodos una secuencia de unos $12$ segundos en tres etapas: $2$ segundos de A, $8$ segundos de transición y $2$ segundos de B.
+
+\begin{itemize}
+    \item \textbf{Audio A (voz original).}\\
+    \url{https://drive.google.com/file/d/1_P2HaMeGV1i4mmaRes1mp8QyUxHjCl6v/view?usp=sharing}
+
+    \item \textbf{Audio B (guitarra original).}\\
+    \url{https://drive.google.com/file/d/1c5WpXuB0kv0syMvrudzjVG3S2fCLoaEj/view?usp=sharing}
+
+    \item \textbf{\textit{Cross-fade}.} Mezcla $(1-\alpha)\,A + \alpha\,B$ aplicada directamente sobre las formas de onda originales, sin intervención de ningún modelo, con $\alpha$ creciendo linealmente de $0$ a $1$ durante la transición. Ambas fuentes se superponen y su proporción varía, pero cada una conserva su propio timbre.\\
+    \url{https://drive.google.com/file/d/1yJyHLEhtkX4pwjxaaCggMm5hjcC4FZ2I/view?usp=sharing}
+
+    \item \textbf{\emph{Morphing} neuronal.} Se codifican ambos audios con sus respectivos modelos y, durante la transición, se combinan sus trayectorias en el espacio latente mientras $\alpha$ evoluciona de $0$ a $1$ interpolando los pesos de los modelos mediante SLERP. Se emplea la configuración \textit{Checkpoint-$\beta$-VAE} y la fase se reconstruye con PGHI. A diferencia del \textit{cross-fade}, en cada instante el audio proviene de un único \textit{decoder} interpolado, que busca fusionar ambos timbres en uno híbrido en lugar de superponer las dos fuentes.\\
+    \url{https://drive.google.com/file/d/1V-eO7fWwcp6LsccxIHGB0uGlvY1LILmz/view?usp=sharing}
+\end{itemize}
+
+En conjunto, los ejemplos de interpolación permiten apreciar de forma auditiva el comportamiento gradual de las transiciones descrito por las métricas presentadas en esta sección, así como el efecto de la inicialización (\textit{Checkpoint} o \textit{Scratch}) y de la regularización ($\beta$) sobre la calidad de la transición. El ejemplo de \emph{morphing}, por su parte, permite comparar de forma directa la transición generada por el sistema con la que se obtiene al mezclar las grabaciones originales.
 
 \chapter{Conclusiones}
 \label{cap:conclusiones}
