@@ -15,14 +15,16 @@ from VariationalAutoEncoder import VariationalAutoEncoder
 
 # --- Constantes ---
 
+MODEL_DIR = Path(__file__).resolve().parent
 INSTRUMENTS = ["piano", "guitar", "voice", "bass"]
-XMAX_DEFAULTS = {
-    "piano": 150.0,
-    "guitar": 150.0,
-    "voice": 140.0,
-    "bass": 120.0,
+# Configuraciones "{training_source}_{beta_config}" con la nomenclatura de la tesis.
+CONFIGS = {
+    "checkpoint_beta_0.001": "Checkpoint-β-VAE",
+    "scratch_beta_0.001": "Scratch-β-VAE",
+    "checkpoint_no_beta": "Checkpoint-AE",
+    "scratch_no_beta": "Scratch-AE",
 }
-# Presets de Z por configuración "{training_source}_{beta_config}".
+# Presets de Z por configuración.
 # Sin beta el espacio latente no está centrado en 0 y cada modelo ocupa una región distinta.
 # checkpoint_beta_0.001: media del encoder (scripts/sample_z_init.py). Resto: medoides de clusters (KMeans)
 # de frames reales con energía alta y buena reconstrucción.
@@ -60,17 +62,27 @@ Z_RANGE_BY_CONFIG = {
     "scratch_no_beta": [(-8.0, 17.0), (-4.0, 6.0), (-3.0, 10.0), (-6.0, 14.0)],
 }
 
-NUM_FRAMES = 64
+NUM_FRAMES = 128  # ~3 s: un loop más largo hace menos notorio el corte al reiniciar
+FADE_SECONDS = 0.01  # fade in/out para que el loop no haga click
+# El nivel de salida varía ~60 dB entre configuraciones y valores de α: normalizar evita que el volumen sesgue
+# la comparación. El tope de ganancia evita convertir un audio casi mudo en ruido fuerte.
+TARGET_RMS_DB = -20.0
+MAX_GAIN_DB = 60.0
+# Barrido: ~1 s de A puro → transición de ~5 s en SWEEP_STEPS pasos de α → ~1 s de B puro.
+SWEEP_HOLD_FRAMES = 43
+SWEEP_STEPS = 21
+SWEEP_STEP_FRAMES = 10
 
 
-# --- Carga y cache de modelos ---
+# --- Carga de modelos ---
 
 
-@st.cache_resource
-def load_model(instrument_key: str, beta_config: str, training_source: str):
+@st.cache_resource(show_spinner=False)
+def load_model(instrument_key: str, config_key: str):
     """Carga un modelo VAE desde checkpoint. Resultado cacheado por Streamlit."""
+    training_source, beta_config = config_key.split("_", 1)
     model_dir = Path(
-        "model",
+        MODEL_DIR,
         "inference_models",
         f"instruments_from_{training_source}",
         f"{instrument_key}_from_{training_source}_{beta_config}",
@@ -103,22 +115,35 @@ def load_model(instrument_key: str, beta_config: str, training_source: str):
     return model, hps
 
 
-@st.cache_resource
-def get_interpolated_model(
-    inst_a_key: str,
-    inst_b_key: str,
-    beta_config: str,
-    training_source: str,
-    alpha: float,
-):
-    """Interpola dos modelos VAE con SLERP. Resultado cacheado."""
-    model_a, hps_a = load_model(inst_a_key, beta_config, training_source)
-    model_b, hps_b = load_model(inst_b_key, beta_config, training_source)
+@st.cache_resource(show_spinner="Cargando modelos...")
+def warmup():
+    """Precarga todos los modelos y corre un Griffin-Lim de prueba: el primero tarda ~10× más que los siguientes."""
+    hps = None
+    for config_key in CONFIGS:
+        for instrument in INSTRUMENTS:
+            try:
+                _, hps = load_model(instrument, config_key)
+            except FileNotFoundError:
+                pass
+    if hps is not None:
+        predict_audio(
+            predicted_specgram=torch.zeros(NUM_FRAMES, hps["win_length"] // 2 + 1),
+            hps=hps,
+            phase_option="griffinlim",
+            frames=NUM_FRAMES,
+            return_audio=True,
+        )
+
+
+def interpolate_models(inst_a_key: str, inst_b_key: str, config_key: str, alpha: float):
+    """Interpola dos modelos VAE con SLERP (~0.05 s). Sin cache: se cachea el audio resultante."""
+    model_a, hps_a = load_model(inst_a_key, config_key)
 
     # Si es el mismo instrumento, devolver modelo A directamente
     if inst_a_key == inst_b_key:
         return model_a, hps_a
 
+    model_b, _ = load_model(inst_b_key, config_key)
     modelo = interpolar_vae(
         model_a,
         model_b,
@@ -133,143 +158,119 @@ def get_interpolated_model(
     return modelo, hps_a
 
 
-def generate_audio(model, hps, z_values, xmax, num_frames):
-    """Genera audio a partir del decoder del modelo interpolado."""
-    model.eval()
-    model.decoder.eval()
+def get_xmax(inst_a_key: str, inst_b_key: str, config_key: str, alpha: float, contrast: float):
+    """Xmax de entrenamiento interpolado entre A y B (como en audio_morphing.py), escalado por el contraste."""
+    _, hps_a = load_model(inst_a_key, config_key)
+    _, hps_b = load_model(inst_b_key, config_key)
+    return ((1.0 - alpha) * hps_a["Xmax"] + alpha * hps_b["Xmax"]) * contrast
 
-    z = torch.tensor([z_values], dtype=torch.float32)
-    z = z.repeat(num_frames, 1)
+
+# --- Generación de audio ---
+
+
+def decode(model, z_values, xmax, num_frames):
+    """Decodifica un Z repetido num_frames veces a un espectrograma en dB."""
+    z = torch.tensor([z_values], dtype=torch.float32).repeat(num_frames, 1)
 
     with torch.no_grad():
         predicted_specgram = model.decoder(z) * xmax
         predicted_specgram = torch.nan_to_num(predicted_specgram, nan=0.0, posinf=xmax, neginf=0.0)
-        predicted_specgram = torch.clamp(predicted_specgram, min=0.0, max=xmax)
+        return torch.clamp(predicted_specgram, min=0.0, max=xmax)
 
-    phase_option = "griffinlim"
+
+def normalize_loudness(audio):
+    """Normaliza a TARGET_RMS_DB (ganancia limitada a MAX_GAIN_DB). Devuelve el audio y su nivel RMS original."""
+    rms_db = 20 * np.log10(max(float(np.sqrt(np.mean(audio**2))), 1e-12))
+    audio = audio * 10 ** (min(TARGET_RMS_DB - rms_db, MAX_GAIN_DB) / 20)
+    peak = float(np.max(np.abs(audio)))
+    if peak > 0.98:
+        audio = audio * 0.98 / peak
+    return audio, rms_db
+
+
+def apply_fades(audio, sample_rate):
+    n = min(int(FADE_SECONDS * sample_rate), len(audio) // 2)
+    ramp = np.linspace(0.0, 1.0, n, dtype=audio.dtype)
+    audio = audio.copy()
+    audio[:n] *= ramp
+    audio[len(audio) - n :] *= ramp[::-1]
+    return audio
+
+
+def spectrogram_to_wav(predicted_specgram, hps):
+    """Griffin-Lim (fase aleatoria si falla) → normalización → fades → WAV.
+
+    Devuelve (wav_bytes, nivel RMS original en dBFS, si se usó fase aleatoria)."""
+    used_fallback = False
     try:
         audio = predict_audio(
             predicted_specgram=predicted_specgram,
             hps=hps,
-            phase_option=phase_option,
-            frames=num_frames,
+            phase_option="griffinlim",
+            frames=predicted_specgram.shape[0],
             return_audio=True,
         )
     except Exception:
+        used_fallback = True
         audio = predict_audio(
             predicted_specgram=predicted_specgram,
             hps=hps,
             phase_option="random",
-            frames=num_frames,
+            frames=predicted_specgram.shape[0],
             return_audio=True,
         )
 
-    if audio is None:
-        return np.zeros(1000, dtype=np.float32)
-
     audio = np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
-    return audio
+    audio, rms_db = normalize_loudness(audio)
+    audio = apply_fades(audio, hps["target_sampling_rate"])
 
-
-# --- Callbacks ---
-
-
-def get_config(use_beta: bool, use_checkpoint: bool):
-    beta_config = "beta_0.001" if use_beta else "no_beta"
-    training_source = "checkpoint" if use_checkpoint else "scratch"
-    return beta_config, training_source
-
-
-def set_z_for_instrument(instrument_name, config_key):
-    """Setea los valores de Z en session_state para un instrumento dado."""
-    z_vals = Z_INIT_BY_CONFIG[config_key][instrument_name]
-    for i, val in enumerate(z_vals):
-        st.session_state[f"z_{i}"] = val
-
-
-def on_config_change():
-    """Al cambiar de modelo, Z vuelve al preset del instrumento A (cada config ocupa otra región del espacio latente)."""
-    beta_config, training_source = get_config(st.session_state["use_beta"], st.session_state["use_checkpoint"])
-    set_z_for_instrument(st.session_state.get("inst_a", "piano"), f"{training_source}_{beta_config}")
-
-
-# --- UI ---
-
-st.set_page_config(page_title="VAE Audio Interpolator", layout="wide")
-st.title("VAE Audio Interpolator")
-
-# Sidebar: solo configuración técnica
-with st.sidebar:
-    st.header("Configuración")
-    use_beta = st.toggle("Beta encoding (beta_0.001)", value=True, key="use_beta", on_change=on_config_change)
-    use_checkpoint = st.toggle("Desde checkpoint", value=True, key="use_checkpoint", on_change=on_config_change)
-
-    beta_config, training_source = get_config(use_beta, use_checkpoint)
-    config_key = f"{training_source}_{beta_config}"
-
-# Main: Instrumentos y alpha
-col_inst_a, col_inst_b, col_alpha = st.columns([1, 1, 2])
-with col_inst_a:
-    inst_a = st.selectbox("Instrumento A", INSTRUMENTS, index=0, key="inst_a")
-with col_inst_b:
-    inst_b = st.selectbox("Instrumento B", INSTRUMENTS, index=1)
-with col_alpha:
-    if inst_a == inst_b:
-        st.info("Mismo instrumento. Alpha sin efecto.")
-    alpha = st.slider("Alpha", 0.0, 1.0, 0.5, step=0.01)
-
-# Main: Espacio latente (Z)
-st.subheader("Espacio latente (Z)")
-
-# Botones quick-set
-btn_cols = st.columns(len(INSTRUMENTS))
-for idx, instrument in enumerate(INSTRUMENTS):
-    with btn_cols[idx]:
-        st.button(
-            instrument.capitalize(),
-            on_click=set_z_for_instrument,
-            args=(instrument, config_key),
-            key=f"btn_z_{instrument}",
-        )
-
-# Inicializar Z en session_state si es la primera vez
-if "z_0" not in st.session_state:
-    set_z_for_instrument("piano", config_key)
-
-# Sliders de Z
-z_values = []
-for i, (z_min, z_max) in enumerate(Z_RANGE_BY_CONFIG[config_key]):
-    st.session_state[f"z_{i}"] = min(max(st.session_state[f"z_{i}"], z_min), z_max)
-    val = st.slider(
-        f"Z{i}",
-        z_min,
-        z_max,
-        step=0.001,
-        key=f"z_{i}",
-    )
-    z_values.append(val)
-
-# Main: Ganancia
-st.subheader("Ganancia")
-default_xmax = (XMAX_DEFAULTS[inst_a] + XMAX_DEFAULTS[inst_b]) / 2.0
-xmax = st.slider("Xmax", 0.0, 300.0, default_xmax, step=1.0)
-
-# Main: Play y audio
-play_enabled = st.toggle("Play", value=st.session_state.get("play_enabled", False))
-st.session_state["play_enabled"] = play_enabled
-
-try:
-    modelo, hps = get_interpolated_model(inst_a, inst_b, beta_config, training_source, alpha)
-
-    audio = generate_audio(modelo, hps, z_values, xmax, NUM_FRAMES)
-
-    sample_rate = hps["target_sampling_rate"]
     buf = io.BytesIO()
-    sf.write(buf, audio, sample_rate, format="WAV")
-    buf.seek(0)
+    sf.write(buf, audio, hps["target_sampling_rate"], format="WAV")
+    return buf.getvalue(), rms_db, used_fallback
 
-    if play_enabled:
-        audio_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+
+# Cachear el audio (y no solo el modelo) hace que un rerun sin cambios devuelva los mismos bytes:
+# el reproductor no se reinicia, y Griffin-Lim (que arranca de fase aleatoria) no da un audio distinto cada vez.
+@st.cache_data(max_entries=64, show_spinner=False)
+def render_audio(inst_a_key, inst_b_key, config_key, alpha, z_values, contrast):
+    """Audio de ~3 s con Z fijo y los pesos interpolados en α."""
+    model, hps = interpolate_models(inst_a_key, inst_b_key, config_key, alpha)
+    xmax = get_xmax(inst_a_key, inst_b_key, config_key, alpha, contrast)
+    return spectrogram_to_wav(decode(model, z_values, xmax, NUM_FRAMES), hps)
+
+
+@st.cache_data(max_entries=32, show_spinner=False)
+def render_sweep(inst_a_key, inst_b_key, config_key, z_a, z_b, contrast):
+    """Barrido de α 0→1: A puro → transición (SLERP de pesos, Z interpolado de z_a a z_b) → B puro."""
+    segments = (
+        [(0.0, SWEEP_HOLD_FRAMES)]
+        + [(float(alpha), SWEEP_STEP_FRAMES) for alpha in np.linspace(0.0, 1.0, SWEEP_STEPS)]
+        + [(1.0, SWEEP_HOLD_FRAMES)]
+    )
+    specgrams = []
+    for alpha, num_frames in segments:
+        model, hps = interpolate_models(inst_a_key, inst_b_key, config_key, alpha)
+        z = [(1.0 - alpha) * a + alpha * b for a, b in zip(z_a, z_b)]
+        xmax = get_xmax(inst_a_key, inst_b_key, config_key, alpha, contrast)
+        specgrams.append(decode(model, z, xmax, num_frames))
+    return spectrogram_to_wav(torch.cat(specgrams), hps)
+
+
+def show_audio(render_fn, *args, autoplay_loop=False):
+    """Renderiza el audio con su nivel original; los errores se muestran en pantalla sin cortar la app."""
+    try:
+        wav, rms_db, used_fallback = render_fn(*args)
+    except FileNotFoundError as e:
+        st.error(str(e))
+        return
+    except Exception as e:
+        st.error(f"Error generando audio: {e}")
+        return
+
+    if autoplay_loop:
+        # st.audio(autoplay=True, loop=True) no sirve acá: no se detiene al apagar Play y no vuelve a
+        # reproducir solo un audio que ya sonó en la sesión (p. ej. volver al preset anterior).
+        audio_b64 = base64.b64encode(wav).decode("ascii")
         audio_html = f"""
         <audio id="vae_audio" controls autoplay loop>
             <source src="data:audio/wav;base64,{audio_b64}" type="audio/wav">
@@ -283,9 +284,153 @@ try:
         """
         components.html(audio_html, height=80)
     else:
-        st.audio(buf, format="audio/wav", sample_rate=sample_rate)
+        st.audio(wav, format="audio/wav")
+    st.caption(f"Nivel original: {rms_db:.0f} dBFS RMS (normalizado a {TARGET_RMS_DB:.0f})")
+    if used_fallback:
+        st.warning("Griffin-Lim falló: este audio usa fase aleatoria.")
 
-except FileNotFoundError as e:
-    st.error(str(e))
-except Exception as e:
-    st.error(f"Error generando audio: {e}")
+
+# --- Callbacks ---
+
+
+def set_z_for_instrument(instrument_name, config_key):
+    """Setea los valores de Z en session_state para un instrumento dado."""
+    z_vals = Z_INIT_BY_CONFIG[config_key][instrument_name]
+    for i, val in enumerate(z_vals):
+        st.session_state[f"z_{i}"] = val
+
+
+def on_config_change():
+    """Al cambiar de modelo, Z vuelve al preset del instrumento A (cada config ocupa otra región del espacio latente)."""
+    set_z_for_instrument(st.session_state.get("inst_a", "piano"), st.session_state["config"])
+
+
+def request_sweep(state_key, params):
+    """Marca qué barrido mostrar y apaga el loop para que no se superpongan."""
+    st.session_state[state_key] = params
+    st.session_state["play_enabled"] = False
+
+
+# --- UI ---
+
+st.set_page_config(page_title="VAE Audio Interpolator", layout="wide")
+st.title("VAE Audio Interpolator")
+warmup()
+
+with st.sidebar:
+    st.header("Avanzado")
+    contrast = st.slider(
+        "Contraste (× Xmax de entrenamiento)",
+        0.5,
+        2.0,
+        1.45,
+        step=0.05,
+        help="Escala el rango en dB del espectrograma decodificado. No cambia el volumen: la salida se normaliza.",
+    )
+
+# Main: Instrumentos y alpha
+col_inst_a, col_inst_b, col_alpha = st.columns([1, 1, 2])
+with col_inst_a:
+    inst_a = st.selectbox("Instrumento A", INSTRUMENTS, index=0, key="inst_a")
+with col_inst_b:
+    inst_b = st.selectbox("Instrumento B", INSTRUMENTS, index=1)
+with col_alpha:
+    alpha = st.slider("Alpha", 0.0, 1.0, 0.0, step=0.01)
+    if inst_a == inst_b:
+        st.info("Mismo instrumento. Alpha sin efecto.")
+same_instrument = inst_a == inst_b
+
+# Con on_change="rerun", .open permite generar solo los audios de la pestaña visible.
+tab_explore, tab_compare = st.tabs(["Explorar", "Comparar configuraciones"], key="view", on_change="rerun")
+
+with tab_explore:
+    config_key = st.radio(
+        "Configuración",
+        list(CONFIGS),
+        format_func=CONFIGS.get,
+        horizontal=True,
+        key="config",
+        on_change=on_config_change,
+    )
+
+    st.subheader("Espacio latente (Z)")
+
+    # Botones quick-set
+    btn_cols = st.columns(len(INSTRUMENTS))
+    for idx, instrument in enumerate(INSTRUMENTS):
+        with btn_cols[idx]:
+            st.button(
+                instrument.capitalize(),
+                on_click=set_z_for_instrument,
+                args=(instrument, config_key),
+                key=f"btn_z_{instrument}",
+            )
+
+    # Inicializar Z en session_state si es la primera vez
+    if "z_0" not in st.session_state:
+        set_z_for_instrument(inst_a, config_key)
+
+    # Sliders de Z
+    z_values = []
+    for i, (z_min, z_max) in enumerate(Z_RANGE_BY_CONFIG[config_key]):
+        st.session_state[f"z_{i}"] = min(max(st.session_state[f"z_{i}"], z_min), z_max)
+        val = st.slider(
+            f"Z{i}",
+            z_min,
+            z_max,
+            step=0.001,
+            key=f"z_{i}",
+        )
+        z_values.append(val)
+    z_values = tuple(z_values)
+
+    # Fuera de la pestaña visible no se renderiza el reproductor, así el loop deja de sonar al cambiar de pestaña.
+    if tab_explore.open:
+        col_play, col_audio = st.columns([1, 5])
+        with col_play:
+            play_enabled = st.toggle("Play (loop)", key="play_enabled")
+        with col_audio:
+            show_audio(render_audio, inst_a, inst_b, config_key, alpha, z_values, contrast, autoplay_loop=play_enabled)
+
+        st.subheader("Barrido α 0→1")
+        st.caption("Z fijo en los valores de los sliders; los pesos van de A a B con SLERP.")
+        sweep_params = (inst_a, inst_b, config_key, z_values, z_values, contrast)
+        st.button(
+            "Generar barrido",
+            on_click=request_sweep,
+            args=("explore_sweep", sweep_params),
+            disabled=same_instrument,
+            key="btn_explore_sweep",
+        )
+        if not same_instrument and st.session_state.get("explore_sweep") == sweep_params:
+            with st.spinner("Generando barrido..."):
+                show_audio(render_sweep, *sweep_params)
+
+with tab_compare:
+    if tab_compare.open:
+        st.caption(
+            "Cada configuración usa sus propios presets de Z, interpolados con α: Z = (1−α)·Z_A + α·Z_B. "
+            "El mismo Z no es comparable entre configuraciones (sin β el espacio latente no está centrado en 0)."
+        )
+        compare_params = (inst_a, inst_b, contrast)
+        st.button(
+            "Generar barridos α 0→1",
+            on_click=request_sweep,
+            args=("compare_sweep", compare_params),
+            disabled=same_instrument,
+            key="btn_compare_sweep",
+        )
+        show_sweeps = not same_instrument and st.session_state.get("compare_sweep") == compare_params
+
+        cells = st.columns(2) + st.columns(2)
+        for cell, (cfg, label) in zip(cells, CONFIGS.items()):
+            with cell:
+                st.markdown(f"**{label}**")
+                z_a, z_b = tuple(Z_INIT_BY_CONFIG[cfg][inst_a]), tuple(Z_INIT_BY_CONFIG[cfg][inst_b])
+                z_alpha = tuple((1.0 - alpha) * a + alpha * b for a, b in zip(z_a, z_b))
+                st.caption(f"α = {alpha:.2f}")
+                show_audio(render_audio, inst_a, inst_b, cfg, alpha, z_alpha, contrast)
+                if show_sweeps:
+                    st.caption("Barrido α 0→1")
+                    with st.spinner("Generando barrido..."):
+                        show_audio(render_sweep, inst_a, inst_b, cfg, z_a, z_b, contrast)
