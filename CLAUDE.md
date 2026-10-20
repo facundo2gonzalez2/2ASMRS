@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**2ASMRS** (Audio Autoencoder for Sound Morphing in Realtime Synthesizer) — a Variational Autoencoder system that learns latent representations of audio spectrograms, enabling real-time sound morphing between instruments (piano, guitar, voice, bass). The Python model code lives in `model/`; the C++ synthesizer plugin (`synthetizer/`) and supplementary scripts (`extra/`) are not currently active.
+**2ASMRS** (Audio Autoencoder for Sound Morphing in Realtime Synthesizer) — a Variational Autoencoder system that learns latent representations of audio spectrograms, enabling real-time sound morphing between instruments (piano, guitar, voice, bass). The Python model code lives in `model/`; the browser synthesizer lives in `web/` (see `web/README.md`); the C++ synthesizer plugin (`synthetizer/`) and supplementary scripts (`extra/`) are not currently active.
 
 The project backs an undergraduate thesis. LaTeX sources live in `model/docs/plan-de-tesis/` (thesis plan) and `model/docs/tesis/` (thesis document).
 
@@ -46,9 +46,14 @@ cd model && bash run_experiments.sh [--skip-slow]
 
 # Pull pre-trained latent-dim experiment models from remote host `venus` via SSH
 cd model && bash pull_models.sh
+
+# Browser synth: export checkpoints to web/public/models/, then run the Vite dev server
+.venv/bin/python model/scripts/export_web_models.py
+cd web && npm install && npm run dev
+cd web && npm test   # ONNX Web vs PyTorch parity, phase-reconstruction quality, offline WAV render
 ```
 
-There is no test suite. Formatting is handled by Black (config in `pyproject.toml`: line-length 120, target py312). VSCode settings in `.vscode/settings.json` use Pyright in basic mode and Black on save.
+There is no Python test suite (`web/` has `npm test`). Formatting is handled by Black (config in `pyproject.toml`: line-length 120, target py312). VSCode settings in `.vscode/settings.json` use Pyright in basic mode and Black on save.
 
 ## Directory Structure
 
@@ -59,6 +64,7 @@ model/
 ├── audio_utils.py             # STFT/ISTFT, spectrogram utilities
 ├── run_vae.py                 # Main training orchestration (fire CLI)
 ├── VariationalAutoEncoder.py  # VAE model definition (PyTorch Lightning)
+├── web_export.py              # InterpolatedDecoder (SLERP in forward) + ONNX/weights export for web/
 ├── utils.py                   # Shared helpers
 ├── run_experiments.sh         # Run all experiment graph scripts
 ├── pull_models.sh             # Pull pre-trained experiment models from remote
@@ -84,6 +90,7 @@ model/
 │   ├── vae_predict.py         # Run inference with trained VAE (supports multiple phase modes)
 │   ├── sample_test_dataset.py # Generate test dataset splits
 │   ├── sample_z_init.py       # Compute Z init stats (mean/std) per instrument for app.py
+│   ├── export_web_models.py   # Export checkpoints + manifest for the browser synth (web/public/models/)
 │   ├── fad_similarity_plot.py # FAD similarity visualization
 │   ├── process_dataset.py     # Dataset preprocessing
 │   └── stero_to_mono.py       # Stereo-to-mono audio conversion
@@ -152,6 +159,12 @@ Interactive UI that loads two instrument models, interpolates them with SLERP at
 
 `audio_comparator.py` uses the MERT-v1-95M transformer model to compute audio embeddings and Fréchet Audio Distance (FAD) between distributions.
 
+### Browser Synthesizer (web/)
+
+Vite + TypeScript, no UI framework. `model/web_export.py` defines `InterpolatedDecoder(state_a, state_b)` with `forward(z, alpha)` doing per-tensor SLERP exactly like `interpolar_vae`, and exports **one ONNX graph per architecture** whose weights are external data `A.bin`/`B.bin`; each checkpoint becomes one `weights/{id}.bin` with the same layout, so the browser pairs any two checkpoints via ONNX Runtime Web `externalData`. `train()` in `run_vae.py` auto-exports at the end of training; `scripts/export_web_models.py` (inline `roots` config) exports existing checkpoints. Output in `web/public/models/` (gitignored).
+
+Runtime: `src/engine/synth.worker.ts` (ORT wasm decoder + `src/dsp/` phase reconstruction + overlap-add) → MessageChannel → `src/engine/player.worklet.ts` (block queue, volume, auto-gain). Phase modes in `src/dsp/`: RTISI-LA initialized with RTPGHI (default), RTPGHI alone, random (as in the C++ synth). UI state persists to localStorage (`src/state.ts`).
+
 ### Model Export
 
 `VariationalAutoEncoder.export_decoder()` traces the decoder to TorchScript (`.pt`) with a companion `.json` config file (latent ranges, STFT params, Xmax) for the C++ synthesizer plugin.
@@ -198,6 +211,7 @@ See `model/docs/model-nomenclature.md` for full details.
 - TensorBoard logs to `model/tb_logs_vae/` (gitignored).
 - Exported TorchScript models to `model/exported_models_vae/` (gitignored).
 - Audio-morphing outputs go to `model/audio_morphing_output_*/` (gitignored).
+- Web-exported models go to `web/public/models/` (gitignored); `web/node_modules/`, `web/dist/`, `web/test/out/` are gitignored.
 - Hyperparameters stored in `hparams.yaml` alongside checkpoints; loaded via YAML for inference.
 - Instrument directory and display names are identical (`piano`, `guitar`, `voice`, `bass`) — no aliasing.
 - Experiment scripts use inline config at the top of `main()` rather than fire/argparse for per-run tweaks.

@@ -11,6 +11,7 @@ from audio_utils import (
     save_specgram,
 )
 from VariationalAutoEncoder import VariationalAutoEncoder
+from web_export import export_version_dir, latent_stats
 
 
 def train(
@@ -122,6 +123,14 @@ def train(
         Path(trainer.log_dir, "reconstructed_audios.mp3"),  # type: ignore
         spec_in_db,
     )
+
+    # Exportar al sintetizador web (web/public/models/): pesos del decoder + rangos de Z sobre todo el dataset
+    try:
+        with torch.no_grad():
+            mu, _ = vae.encoder(X)
+        export_version_dir(trainer.log_dir, stats=latent_stats(mu.cpu().numpy(), X.cpu().numpy()))  # type: ignore
+    except Exception as e:
+        print(f"No se pudo exportar el modelo a la web: {e}")
 
     X = X[: 2 * 60 * target_sampling_rate // hop_length]
     predicted_specgram = vae.predict(X) * Xmax
