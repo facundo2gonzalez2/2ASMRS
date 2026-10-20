@@ -32,8 +32,9 @@ SUPPORTED_EXTS = {".wav", ".mp3", ".flac", ".ogg", ".m4a"}
 def main():
     # --- Config ---
     # Directorios de logs a recorrer (cada uno con {run_name}/version_N/). Agregar acá los de nuevos entrenamientos.
+    # Lo exportado a web/public/models/ se commitea y es lo que sirve el deploy.
     roots = [
-        MODEL_DIR / "inference_models" / "base_model",
+        # MODEL_DIR / "inference_models" / "base_model",
         MODEL_DIR / "inference_models" / "instruments_from_checkpoint",
         MODEL_DIR / "inference_models" / "instruments_from_scratch",
         # MODEL_DIR / "experiments_models" / "experiment_latent_dim_piano",

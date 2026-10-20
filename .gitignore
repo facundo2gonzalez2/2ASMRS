@@ -18,5 +18,3 @@ GEMINI.md
 web/node_modules/
 web/dist/
 web/test/out/
-# Generado por model/scripts/export_web_models.py (y al final de cada entrenamiento)
-web/public/models/

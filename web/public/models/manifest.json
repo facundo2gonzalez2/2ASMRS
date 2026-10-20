@@ -1,0 +1,683 @@
+{
+  "version": 1,
+  "archs": {
+    "dec_4-8-16-32-64-128-256-512-1024-1025": {
+      "graph": "graphs/dec_4-8-16-32-64-128-256-512-1024-1025.onnx",
+      "layers": [
+        4,
+        8,
+        16,
+        32,
+        64,
+        128,
+        256,
+        512,
+        1024,
+        1025
+      ],
+      "externalData": [
+        "A.bin",
+        "B.bin"
+      ],
+      "weightsBytes": 7055860
+    }
+  },
+  "models": [
+    {
+      "id": "bass_from_checkpoint_beta_0.001",
+      "label": "bass · checkpoint · β=0.001",
+      "group": "instruments_from_checkpoint",
+      "arch": "dec_4-8-16-32-64-128-256-512-1024-1025",
+      "weights": "weights/bass_from_checkpoint_beta_0.001.bin",
+      "sha256": "27bfd982099878b8",
+      "latentDim": 4,
+      "sampleRate": 22050,
+      "winLength": 2048,
+      "hopLength": 512,
+      "xMax": 109.97218322753906,
+      "dbMinNorm": -60.0,
+      "beta": 0.001,
+      "zRange": [
+        [
+          -0.006,
+          0.003
+        ],
+        [
+          -2.83,
+          2.736
+        ],
+        [
+          -0.01,
+          0.006
+        ],
+        [
+          -2.137,
+          1.44
+        ]
+      ],
+      "zInit": [
+        0.0001,
+        1.0046,
+        0.0002,
+        0.162
+      ],
+      "source": "inference_models/instruments_from_checkpoint/bass_from_checkpoint_beta_0.001/version_0/checkpoints/epoch=270-step=236583.ckpt",
+      "exportedAt": "2026-10-20T13:54:24"
+    },
+    {
+      "id": "bass_from_checkpoint_no_beta",
+      "label": "bass · checkpoint · sin β",
+      "group": "instruments_from_checkpoint",
+      "arch": "dec_4-8-16-32-64-128-256-512-1024-1025",
+      "weights": "weights/bass_from_checkpoint_no_beta.bin",
+      "sha256": "b8d5e99fbb75e427",
+      "latentDim": 4,
+      "sampleRate": 22050,
+      "winLength": 2048,
+      "hopLength": 512,
+      "xMax": 109.97218322753906,
+      "dbMinNorm": -60.0,
+      "beta": 0.0,
+      "zRange": [
+        [
+          -8.611,
+          -2.254
+        ],
+        [
+          5.575,
+          10.401
+        ],
+        [
+          15.353,
+          20.407
+        ],
+        [
+          -13.329,
+          -3.816
+        ]
+      ],
+      "zInit": [
+        -7.3522,
+        6.9726,
+        19.322,
+        -6.2696
+      ],
+      "source": "inference_models/instruments_from_checkpoint/bass_from_checkpoint_no_beta/version_0/checkpoints/epoch=999-step=873000.ckpt",
+      "exportedAt": "2026-10-20T13:54:26"
+    },
+    {
+      "id": "guitar_from_checkpoint_beta_0.001",
+      "label": "guitar · checkpoint · β=0.001",
+      "group": "instruments_from_checkpoint",
+      "arch": "dec_4-8-16-32-64-128-256-512-1024-1025",
+      "weights": "weights/guitar_from_checkpoint_beta_0.001.bin",
+      "sha256": "c1d15bba942573b5",
+      "latentDim": 4,
+      "sampleRate": 22050,
+      "winLength": 2048,
+      "hopLength": 512,
+      "xMax": 93.87763214111328,
+      "dbMinNorm": -60.0,
+      "beta": 0.001,
+      "zRange": [
+        [
+          -0.007,
+          0.003
+        ],
+        [
+          -1.608,
+          2.618
+        ],
+        [
+          -3.234,
+          3.19
+        ],
+        [
+          -3.537,
+          2.873
+        ]
+      ],
+      "zInit": [
+        -0.0017,
+        1.3906,
+        -0.2542,
+        -0.4853
+      ],
+      "source": "inference_models/instruments_from_checkpoint/guitar_from_checkpoint_beta_0.001/version_0/checkpoints/epoch=443-step=389388.ckpt",
+      "exportedAt": "2026-10-20T13:54:28"
+    },
+    {
+      "id": "guitar_from_checkpoint_no_beta",
+      "label": "guitar · checkpoint · sin β",
+      "group": "instruments_from_checkpoint",
+      "arch": "dec_4-8-16-32-64-128-256-512-1024-1025",
+      "weights": "weights/guitar_from_checkpoint_no_beta.bin",
+      "sha256": "14a055764c9cfa7f",
+      "latentDim": 4,
+      "sampleRate": 22050,
+      "winLength": 2048,
+      "hopLength": 512,
+      "xMax": 93.87763214111328,
+      "dbMinNorm": -60.0,
+      "beta": 0.0,
+      "zRange": [
+        [
+          -6.907,
+          -1.801
+        ],
+        [
+          7.638,
+          11.461
+        ],
+        [
+          15.694,
+          19.037
+        ],
+        [
+          -9.665,
+          -3.885
+        ]
+      ],
+      "zInit": [
+        -4.7879,
+        9.0895,
+        18.0371,
+        -6.4695
+      ],
+      "source": "inference_models/instruments_from_checkpoint/guitar_from_checkpoint_no_beta/version_0/checkpoints/epoch=714-step=627055.ckpt",
+      "exportedAt": "2026-10-20T13:54:28"
+    },
+    {
+      "id": "piano_from_checkpoint_beta_0.001",
+      "label": "piano · checkpoint · β=0.001",
+      "group": "instruments_from_checkpoint",
+      "arch": "dec_4-8-16-32-64-128-256-512-1024-1025",
+      "weights": "weights/piano_from_checkpoint_beta_0.001.bin",
+      "sha256": "5d16779393e46eb5",
+      "latentDim": 4,
+      "sampleRate": 22050,
+      "winLength": 2048,
+      "hopLength": 512,
+      "xMax": 109.83682250976562,
+      "dbMinNorm": -60.0,
+      "beta": 0.001,
+      "zRange": [
+        [
+          -0.004,
+          0.003
+        ],
+        [
+          -2.152,
+          2.987
+        ],
+        [
+          -2.66,
+          2.375
+        ],
+        [
+          -1.466,
+          2.622
+        ]
+      ],
+      "zInit": [
+        -0.0018,
+        1.2556,
+        0.2491,
+        -0.0873
+      ],
+      "source": "inference_models/instruments_from_checkpoint/piano_from_checkpoint_beta_0.001/version_0/checkpoints/epoch=999-step=739000.ckpt",
+      "exportedAt": "2026-10-20T13:54:36"
+    },
+    {
+      "id": "piano_from_checkpoint_no_beta",
+      "label": "piano · checkpoint · sin β",
+      "group": "instruments_from_checkpoint",
+      "arch": "dec_4-8-16-32-64-128-256-512-1024-1025",
+      "weights": "weights/piano_from_checkpoint_no_beta.bin",
+      "sha256": "27b92d6c7a453a5a",
+      "latentDim": 4,
+      "sampleRate": 22050,
+      "winLength": 2048,
+      "hopLength": 512,
+      "xMax": 109.83682250976562,
+      "dbMinNorm": -60.0,
+      "beta": 0.0,
+      "zRange": [
+        [
+          5.348,
+          6.579
+        ],
+        [
+          3.907,
+          7.395
+        ],
+        [
+          6.533,
+          7.83
+        ],
+        [
+          -8.935,
+          -4.111
+        ]
+      ],
+      "zInit": [
+        5.8379,
+        4.4945,
+        7.4655,
+        -5.0777
+      ],
+      "source": "inference_models/instruments_from_checkpoint/piano_from_checkpoint_no_beta/version_0/checkpoints/epoch=640-step=473699.ckpt",
+      "exportedAt": "2026-10-20T13:54:38"
+    },
+    {
+      "id": "voice_from_checkpoint_beta_0.001",
+      "label": "voice · checkpoint · β=0.001",
+      "group": "instruments_from_checkpoint",
+      "arch": "dec_4-8-16-32-64-128-256-512-1024-1025",
+      "weights": "weights/voice_from_checkpoint_beta_0.001.bin",
+      "sha256": "e0a29a5e4b1b0285",
+      "latentDim": 4,
+      "sampleRate": 22050,
+      "winLength": 2048,
+      "hopLength": 512,
+      "xMax": 110.94490051269531,
+      "dbMinNorm": -60.0,
+      "beta": 0.001,
+      "zRange": [
+        [
+          -0.002,
+          0.007
+        ],
+        [
+          -2.363,
+          2.943
+        ],
+        [
+          -1.964,
+          3.193
+        ],
+        [
+          -0.79,
+          2.747
+        ]
+      ],
+      "zInit": [
+        0.0028,
+        1.4005,
+        -0.2585,
+        1.1415
+      ],
+      "source": "inference_models/instruments_from_checkpoint/voice_from_checkpoint_beta_0.001/version_0/checkpoints/epoch=405-step=343476.ckpt",
+      "exportedAt": "2026-10-20T13:54:39"
+    },
+    {
+      "id": "voice_from_checkpoint_no_beta",
+      "label": "voice · checkpoint · sin β",
+      "group": "instruments_from_checkpoint",
+      "arch": "dec_4-8-16-32-64-128-256-512-1024-1025",
+      "weights": "weights/voice_from_checkpoint_no_beta.bin",
+      "sha256": "3401e6ea4a4c78ba",
+      "latentDim": 4,
+      "sampleRate": 22050,
+      "winLength": 2048,
+      "hopLength": 512,
+      "xMax": 110.94490051269531,
+      "dbMinNorm": -60.0,
+      "beta": 0.0,
+      "zRange": [
+        [
+          4.635,
+          5.874
+        ],
+        [
+          2.779,
+          4.327
+        ],
+        [
+          6.646,
+          7.41
+        ],
+        [
+          -5.371,
+          -4.095
+        ]
+      ],
+      "zInit": [
+        5.4145,
+        3.328,
+        7.213,
+        -4.7417
+      ],
+      "source": "inference_models/instruments_from_checkpoint/voice_from_checkpoint_no_beta/version_0/checkpoints/epoch=268-step=227574.ckpt",
+      "exportedAt": "2026-10-20T13:54:39"
+    },
+    {
+      "id": "bass_from_scratch_beta_0.001",
+      "label": "bass · scratch · β=0.001",
+      "group": "instruments_from_scratch",
+      "arch": "dec_4-8-16-32-64-128-256-512-1024-1025",
+      "weights": "weights/bass_from_scratch_beta_0.001.bin",
+      "sha256": "112776073263dd45",
+      "latentDim": 4,
+      "sampleRate": 22050,
+      "winLength": 2048,
+      "hopLength": 512,
+      "xMax": 109.97218322753906,
+      "dbMinNorm": -60.0,
+      "beta": 0.001,
+      "zRange": [
+        [
+          -1.41,
+          2.079
+        ],
+        [
+          -0.004,
+          0.003
+        ],
+        [
+          -0.011,
+          0.016
+        ],
+        [
+          -2.678,
+          2.883
+        ]
+      ],
+      "zInit": [
+        -0.1521,
+        -0.0008,
+        -0.001,
+        -0.999
+      ],
+      "source": "inference_models/instruments_from_scratch/bass_from_scratch_beta_0.001/version_0/checkpoints/epoch=232-step=203409.ckpt",
+      "exportedAt": "2026-10-20T13:54:42"
+    },
+    {
+      "id": "bass_from_scratch_no_beta",
+      "label": "bass · scratch · sin β",
+      "group": "instruments_from_scratch",
+      "arch": "dec_4-8-16-32-64-128-256-512-1024-1025",
+      "weights": "weights/bass_from_scratch_no_beta.bin",
+      "sha256": "e44c169b5c19a4e7",
+      "latentDim": 4,
+      "sampleRate": 22050,
+      "winLength": 2048,
+      "hopLength": 512,
+      "xMax": 109.97218322753906,
+      "dbMinNorm": -60.0,
+      "beta": 0.0,
+      "zRange": [
+        [
+          -3.974,
+          -2.441
+        ],
+        [
+          -2.37,
+          -0.434
+        ],
+        [
+          2.914,
+          4.553
+        ],
+        [
+          1.073,
+          2.624
+        ]
+      ],
+      "zInit": [
+        -3.6484,
+        -1.7382,
+        3.5786,
+        1.8504
+      ],
+      "source": "inference_models/instruments_from_scratch/bass_from_scratch_no_beta/version_0/checkpoints/epoch=902-step=788319.ckpt",
+      "exportedAt": "2026-10-20T13:54:43"
+    },
+    {
+      "id": "guitar_from_scratch_beta_0.001",
+      "label": "guitar · scratch · β=0.001",
+      "group": "instruments_from_scratch",
+      "arch": "dec_4-8-16-32-64-128-256-512-1024-1025",
+      "weights": "weights/guitar_from_scratch_beta_0.001.bin",
+      "sha256": "0cd4f7797ed10824",
+      "latentDim": 4,
+      "sampleRate": 22050,
+      "winLength": 2048,
+      "hopLength": 512,
+      "xMax": 93.87763214111328,
+      "dbMinNorm": -60.0,
+      "beta": 0.001,
+      "zRange": [
+        [
+          -2.2,
+          2.849
+        ],
+        [
+          -2.883,
+          2.377
+        ],
+        [
+          -0.004,
+          0.003
+        ],
+        [
+          -0.011,
+          0.014
+        ]
+      ],
+      "zInit": [
+        1.3509,
+        0.6614,
+        0.0013,
+        -0.0039
+      ],
+      "source": "inference_models/instruments_from_scratch/guitar_from_scratch_beta_0.001/version_0/checkpoints/epoch=302-step=265731.ckpt",
+      "exportedAt": "2026-10-20T13:54:44"
+    },
+    {
+      "id": "guitar_from_scratch_no_beta",
+      "label": "guitar · scratch · sin β",
+      "group": "instruments_from_scratch",
+      "arch": "dec_4-8-16-32-64-128-256-512-1024-1025",
+      "weights": "weights/guitar_from_scratch_no_beta.bin",
+      "sha256": "c8ece30a4e1255d9",
+      "latentDim": 4,
+      "sampleRate": 22050,
+      "winLength": 2048,
+      "hopLength": 512,
+      "xMax": 93.87763214111328,
+      "dbMinNorm": -60.0,
+      "beta": 0.0,
+      "zRange": [
+        [
+          0.917,
+          2.843
+        ],
+        [
+          1.054,
+          3.29
+        ],
+        [
+          1.925,
+          3.791
+        ],
+        [
+          -2.343,
+          -1.062
+        ]
+      ],
+      "zInit": [
+        1.8777,
+        2.4084,
+        2.9401,
+        -1.6131
+      ],
+      "source": "inference_models/instruments_from_scratch/guitar_from_scratch_no_beta/version_0/checkpoints/epoch=737-step=647226.ckpt",
+      "exportedAt": "2026-10-20T13:54:44"
+    },
+    {
+      "id": "piano_from_scratch_beta_0.001",
+      "label": "piano · scratch · β=0.001",
+      "group": "instruments_from_scratch",
+      "arch": "dec_4-8-16-32-64-128-256-512-1024-1025",
+      "weights": "weights/piano_from_scratch_beta_0.001.bin",
+      "sha256": "51e6bc9992ee163a",
+      "latentDim": 4,
+      "sampleRate": 22050,
+      "winLength": 2048,
+      "hopLength": 512,
+      "xMax": 109.83682250976562,
+      "dbMinNorm": -60.0,
+      "beta": 0.001,
+      "zRange": [
+        [
+          -2.651,
+          3.245
+        ],
+        [
+          -2.843,
+          3.223
+        ],
+        [
+          -1.987,
+          1.638
+        ],
+        [
+          -0.005,
+          0.005
+        ]
+      ],
+      "zInit": [
+        1.1893,
+        0.9354,
+        0.0453,
+        -0.0006
+      ],
+      "source": "inference_models/instruments_from_scratch/piano_from_scratch_beta_0.001/version_0/checkpoints/epoch=620-step=458919.ckpt",
+      "exportedAt": "2026-10-20T13:54:46"
+    },
+    {
+      "id": "piano_from_scratch_no_beta",
+      "label": "piano · scratch · sin β",
+      "group": "instruments_from_scratch",
+      "arch": "dec_4-8-16-32-64-128-256-512-1024-1025",
+      "weights": "weights/piano_from_scratch_no_beta.bin",
+      "sha256": "c3698cd801f7275d",
+      "latentDim": 4,
+      "sampleRate": 22050,
+      "winLength": 2048,
+      "hopLength": 512,
+      "xMax": 109.83682250976562,
+      "dbMinNorm": -60.0,
+      "beta": 0.0,
+      "zRange": [
+        [
+          9.872,
+          12.83
+        ],
+        [
+          1.055,
+          4.885
+        ],
+        [
+          4.133,
+          8.378
+        ],
+        [
+          7.256,
+          10.733
+        ]
+      ],
+      "zInit": [
+        11.6312,
+        2.4185,
+        5.721,
+        8.6614
+      ],
+      "source": "inference_models/instruments_from_scratch/piano_from_scratch_no_beta/version_0/checkpoints/epoch=940-step=695399.ckpt",
+      "exportedAt": "2026-10-20T13:54:48"
+    },
+    {
+      "id": "voice_from_scratch_beta_0.001",
+      "label": "voice · scratch · β=0.001",
+      "group": "instruments_from_scratch",
+      "arch": "dec_4-8-16-32-64-128-256-512-1024-1025",
+      "weights": "weights/voice_from_scratch_beta_0.001.bin",
+      "sha256": "8e7382e37734ba9a",
+      "latentDim": 4,
+      "sampleRate": 22050,
+      "winLength": 2048,
+      "hopLength": 512,
+      "xMax": 110.94490051269531,
+      "dbMinNorm": -60.0,
+      "beta": 0.001,
+      "zRange": [
+        [
+          -0.002,
+          0.003
+        ],
+        [
+          -2.39,
+          1.419
+        ],
+        [
+          -2.456,
+          2.86
+        ],
+        [
+          -0.496,
+          2.382
+        ]
+      ],
+      "zInit": [
+        0.0004,
+        0.0824,
+        1.3736,
+        1.1661
+      ],
+      "source": "inference_models/instruments_from_scratch/voice_from_scratch_beta_0.001/version_0/checkpoints/epoch=744-step=630270.ckpt",
+      "exportedAt": "2026-10-20T13:54:48"
+    },
+    {
+      "id": "voice_from_scratch_no_beta",
+      "label": "voice · scratch · sin β",
+      "group": "instruments_from_scratch",
+      "arch": "dec_4-8-16-32-64-128-256-512-1024-1025",
+      "weights": "weights/voice_from_scratch_no_beta.bin",
+      "sha256": "b26e2c0a95e91966",
+      "latentDim": 4,
+      "sampleRate": 22050,
+      "winLength": 2048,
+      "hopLength": 512,
+      "xMax": 110.94490051269531,
+      "dbMinNorm": -60.0,
+      "beta": 0.0,
+      "zRange": [
+        [
+          0.276,
+          0.997
+        ],
+        [
+          1.67,
+          2.833
+        ],
+        [
+          -0.286,
+          0.469
+        ],
+        [
+          -0.049,
+          0.914
+        ]
+      ],
+      "zInit": [
+        0.7971,
+        2.4495,
+        0.0657,
+        0.2767
+      ],
+      "source": "inference_models/instruments_from_scratch/voice_from_scratch_no_beta/version_0/checkpoints/epoch=658-step=557514.ckpt",
+      "exportedAt": "2026-10-20T13:54:48"
+    }
+  ]
+}

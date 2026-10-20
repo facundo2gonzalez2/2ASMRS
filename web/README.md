@@ -56,7 +56,7 @@ UI (main thread) ──params──▶ Worker de síntesis ──bloques de hop�
   correrlo. Los rangos de los pads y el Z inicial salen del encoder sobre algunos audios de `data_instruments/`
   (si no están, se usa el prior N(0, 1)).
 
-Los modelos van a `web/public/models/` (gitignored): `manifest.json`, `graphs/{arch}.onnx` (~190 KB) y
+Los modelos van a `web/public/models/` (commiteado, es lo que sirve el deploy): `manifest.json`, `graphs/{arch}.onnx` (~190 KB) y
 `weights/{id}.bin` (~6.8 MB en float32). Solo se pueden interpolar checkpoints con la misma arquitectura y los
 mismos parámetros de STFT; la UI deshabilita los incompatibles.
 

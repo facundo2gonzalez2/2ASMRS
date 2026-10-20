@@ -161,7 +161,7 @@ Interactive UI that loads two instrument models, interpolates them with SLERP at
 
 ### Browser Synthesizer (web/)
 
-Vite + TypeScript, no UI framework. `model/web_export.py` defines `InterpolatedDecoder(state_a, state_b)` with `forward(z, alpha)` doing per-tensor SLERP exactly like `interpolar_vae`, and exports **one ONNX graph per architecture** whose weights are external data `A.bin`/`B.bin`; each checkpoint becomes one `weights/{id}.bin` with the same layout, so the browser pairs any two checkpoints via ONNX Runtime Web `externalData`. `train()` in `run_vae.py` auto-exports at the end of training; `scripts/export_web_models.py` (inline `roots` config) exports existing checkpoints. Output in `web/public/models/` (gitignored).
+Vite + TypeScript, no UI framework. `model/web_export.py` defines `InterpolatedDecoder(state_a, state_b)` with `forward(z, alpha)` doing per-tensor SLERP exactly like `interpolar_vae`, and exports **one ONNX graph per architecture** whose weights are external data `A.bin`/`B.bin`; each checkpoint becomes one `weights/{id}.bin` with the same layout, so the browser pairs any two checkpoints via ONNX Runtime Web `externalData`. `train()` in `run_vae.py` auto-exports at the end of training; `scripts/export_web_models.py` (inline `roots` config) exports existing checkpoints. Output in `web/public/models/`, committed: it's what the Railway deploy serves (root directory `web/`, static Vite build). Tracked set = the 16 per-instrument models (from_checkpoint/from_scratch × β/no-β); base models are excluded from `roots`.
 
 Runtime: `src/engine/synth.worker.ts` (ORT wasm decoder + `src/dsp/` phase reconstruction + overlap-add) → MessageChannel → `src/engine/player.worklet.ts` (block queue, volume, auto-gain). Phase modes in `src/dsp/`: RTISI-LA initialized with RTPGHI (default), RTPGHI alone, random (as in the C++ synth). UI state persists to localStorage (`src/state.ts`).
 
@@ -211,7 +211,7 @@ See `model/docs/model-nomenclature.md` for full details.
 - TensorBoard logs to `model/tb_logs_vae/` (gitignored).
 - Exported TorchScript models to `model/exported_models_vae/` (gitignored).
 - Audio-morphing outputs go to `model/audio_morphing_output_*/` (gitignored).
-- Web-exported models go to `web/public/models/` (gitignored); `web/node_modules/`, `web/dist/`, `web/test/out/` are gitignored.
+- Web-exported models go to `web/public/models/` (committed, served by the deploy); `web/node_modules/`, `web/dist/`, `web/test/out/` are gitignored.
 - Hyperparameters stored in `hparams.yaml` alongside checkpoints; loaded via YAML for inference.
 - Instrument directory and display names are identical (`piano`, `guitar`, `voice`, `bass`) — no aliasing.
 - Experiment scripts use inline config at the top of `main()` rather than fire/argparse for per-run tweaks.
