@@ -3,13 +3,14 @@ import type { PhaseMode } from "./dsp/framesynth";
 import { SynthEngine } from "./engine/engine";
 import type { FromWorklet } from "./engine/protocol";
 import { compatible, fetchManifest, GROUP_LABELS, modelUrl, type Manifest, type ModelEntry } from "./models";
-import { PRESET_COUNT, Store, type UiState } from "./state";
+import { PRESET_COUNT, Store, type Preset, type UiState } from "./state";
 import { PresetBank } from "./ui/presets";
 import { Spectrogram } from "./ui/spectrogram";
 import { XYPad } from "./ui/xypad";
 
 const COLOR_A = "#f6ad55";
 const COLOR_B = "#9f7aea";
+const MORPH_MAX_SEC = 30;
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
 
@@ -111,6 +112,9 @@ app.innerHTML = `
     <div class="preset-wrap">
       <div class="row-label"><span>Presets</span><span class="hint">click: cargar · mantener: guardar · teclas 1–0 / Shift+n</span></div>
       <div id="presets"></div>
+      <label class="morph-time" title="Tiempo en que Z, α y el volumen van del estado actual al preset elegido. Tocar un control corta la transición.">
+        <span>Transición</span><input id="morph" type="range" min="0" max="1" step="0.001" /><output id="morph-out"></output>
+      </label>
     </div>
   </section>
 
@@ -138,7 +142,7 @@ app.innerHTML = `
       <label>Contraste (× Xmax) <output id="contrast-out"></output>
         <input id="contrast" type="range" min="0.5" max="2" step="0.05" />
       </label>
-      <label>Glide <output id="glide-out"></output>
+      <label title="Suavizado corto de Z y α en el sintetizador para evitar clicks al mover los controles. Para transiciones largas entre presets usar Transición.">Suavizado (glide) <output id="glide-out"></output>
         <input id="glide" type="range" min="0" max="500" step="5" />
       </label>
       <label>Buffer <output id="latency-out"></output>
@@ -164,14 +168,21 @@ const contrastInput = $<HTMLInputElement>("#contrast");
 const lookaheadInput = $<HTMLInputElement>("#lookahead");
 const iterationsInput = $<HTMLInputElement>("#iterations");
 const glideInput = $<HTMLInputElement>("#glide");
+const morphInput = $<HTMLInputElement>("#morph");
 const latencyInput = $<HTMLInputElement>("#latency");
 const autoGainInput = $<HTMLInputElement>("#autogain");
 const playBtn = $<HTMLButtonElement>("#play");
 
+/** Cambio hecho a mano: corta la transición entre presets en curso y deja de marcar el preset activo. */
+function edit(patch: Partial<UiState>) {
+  cancelMorph();
+  store.set({ ...patch, activePreset: null });
+}
+
 const setZ = (dim: number, value: number) => {
   const z = store.state.z.slice();
   z[dim] = value;
-  store.set({ z, activePreset: null });
+  edit({ z });
 };
 
 const pads = [
@@ -183,7 +194,7 @@ const pads = [
       const z = store.state.z.slice();
       z[0] = x;
       z[1] = y;
-      store.set({ z, activePreset: null });
+      edit({ z });
     },
     onReset: () => resetZ([0, 1]),
   }),
@@ -195,7 +206,7 @@ const pads = [
       const z = store.state.z.slice();
       z[2] = x;
       if (z.length > 3) z[3] = y;
-      store.set({ z, activePreset: null });
+      edit({ z });
     },
     onReset: () => resetZ([2, 3]),
   }),
@@ -208,17 +219,14 @@ function resetZ(dims?: number[]) {
   const init = zInitAt(pair[0], pair[1], store.state.alpha);
   const z = store.state.z.slice();
   for (const d of dims ?? init.map((_, i) => i)) if (d < init.length) z[d] = init[d];
-  store.set({ z, activePreset: null });
+  edit({ z });
 }
 
 const presetBank = new PresetBank({
   count: PRESET_COUNT,
-  onRecall: (i) => {
-    const p = store.state.presets[i];
-    if (!p) return;
-    store.set({ z: p.z.slice(), alpha: p.alpha, volumeDb: p.volumeDb, activePreset: i });
-  },
+  onRecall: (i) => recallPreset(i),
   onSave: (i) => {
+    cancelMorph();
     const s = store.state;
     const presets = s.presets.slice();
     presets[i] = { z: s.z.slice(), alpha: s.alpha, volumeDb: s.volumeDb, savedAt: new Date().toISOString() };
@@ -227,18 +235,70 @@ const presetBank = new PresetBank({
 });
 $("#presets").appendChild(presetBank.el);
 
+// --- Transición entre presets ---
+
+let morphTimer: number | undefined;
+
+function cancelMorph() {
+  if (morphTimer === undefined) return;
+  window.clearInterval(morphTimer);
+  morphTimer = undefined;
+  presetBank.setProgress(null, 0);
+}
+
+/** Lleva Z, α y volumen al preset en `morphSec` segundos (curva ease-in-out), moviendo los controles. */
+function recallPreset(i: number) {
+  const target = store.state.presets[i];
+  if (!target) return;
+  cancelMorph();
+  const s = store.state;
+  const durationMs = s.morphSec * 1000;
+  const jump = (p: Preset) => store.set({ z: p.z.slice(), alpha: p.alpha, volumeDb: p.volumeDb, activePreset: i });
+  if (durationMs <= 0 || s.z.length !== target.z.length) {
+    jump(target);
+    return;
+  }
+  const from = { z: s.z.slice(), alpha: s.alpha, volumeDb: s.volumeDb };
+  const start = performance.now();
+  const step = () => {
+    const t = Math.min(1, (performance.now() - start) / durationMs);
+    if (t >= 1) {
+      cancelMorph();
+      jump(target);
+      return;
+    }
+    const e = 0.5 - 0.5 * Math.cos(Math.PI * t);
+    const mix = (a: number, b: number) => a + (b - a) * e;
+    store.set({
+      z: from.z.map((v, d) => mix(v, target.z[d])),
+      alpha: mix(from.alpha, target.alpha),
+      volumeDb: mix(from.volumeDb, target.volumeDb),
+      activePreset: i,
+    });
+    presetBank.setProgress(i, t);
+  };
+  // setInterval y no requestAnimationFrame: rAF se frena con la pestaña en segundo plano y el audio sigue sonando
+  morphTimer = window.setInterval(step, 20);
+  step();
+}
+
+/** Slider 0–1 → segundos, cuadrático para tener resolución fina en transiciones cortas. */
+const morphSecFromSlider = (u: number) => Math.round(MORPH_MAX_SEC * u * u * 10) / 10;
+
 // --- Eventos de la UI ---
 
 selA.addEventListener("change", () => onModelPick({ modelA: selA.value }));
 selB.addEventListener("change", () => onModelPick({ modelB: selB.value }));
 $("#swap").addEventListener("click", () => {
   const { modelA, modelB, alpha } = store.state;
+  cancelMorph();
   store.set({ modelA: modelB, modelB: modelA, alpha: 1 - alpha });
 });
 $("#reload").addEventListener("click", () => void loadManifest());
-alphaInput.addEventListener("input", () => store.set({ alpha: Number(alphaInput.value), activePreset: null }));
-alphaInput.addEventListener("dblclick", () => store.set({ alpha: 0.5 }));
-volumeInput.addEventListener("input", () => store.set({ volumeDb: Number(volumeInput.value), activePreset: null }));
+alphaInput.addEventListener("input", () => edit({ alpha: Number(alphaInput.value) }));
+alphaInput.addEventListener("dblclick", () => edit({ alpha: 0.5 }));
+volumeInput.addEventListener("input", () => edit({ volumeDb: Number(volumeInput.value) }));
+morphInput.addEventListener("input", () => store.set({ morphSec: morphSecFromSlider(Number(morphInput.value)) }));
 phaseSelect.addEventListener("change", () => store.set({ phaseMode: phaseSelect.value as PhaseMode }));
 contrastInput.addEventListener("input", () => store.set({ contrast: Number(contrastInput.value) }));
 lookaheadInput.addEventListener("input", () => store.set({ rtisiLookahead: Number(lookaheadInput.value) }));
@@ -248,6 +308,7 @@ latencyInput.addEventListener("input", () => store.set({ latencyBlocks: Number(l
 autoGainInput.addEventListener("change", () => store.set({ autoGain: autoGainInput.checked }));
 $("#reset-z").addEventListener("click", () => resetZ());
 $("#reset-all").addEventListener("click", () => {
+  cancelMorph();
   store.reset();
   pickDefaultModels();
   resetZ();
@@ -457,6 +518,8 @@ function renderControls() {
   $("#iterations-out").textContent = String(s.rtisiIterations);
   contrastInput.value = String(s.contrast);
   $("#contrast-out").textContent = `${s.contrast.toFixed(2)}×`;
+  morphInput.value = String(Math.sqrt(s.morphSec / MORPH_MAX_SEC));
+  $("#morph-out").textContent = s.morphSec > 0 ? `${s.morphSec.toFixed(1)} s` : "inmediata";
   glideInput.value = String(s.glideMs);
   $("#glide-out").textContent = `${s.glideMs} ms`;
   latencyInput.value = String(s.latencyBlocks);

@@ -67,11 +67,14 @@ mismos parámetros de STFT; la UI deshabilita los incompatibles.
   click vuelve a él. Flechas del teclado para ajuste fino (Shift = más fino).
 - **Presets** (10): click carga, mantener apretado (650 ms) guarda/sobrescribe. Teclas `1`–`0` cargan,
   `Shift+n` guarda. Guardan Z, α y volumen.
+- **Transición** (0–30 s, default 2 s): al cargar un preset, Z, α y volumen van desde el estado actual al del preset
+  con una curva ease-in-out, moviendo los pads y sliders (la barra bajo el preset muestra el progreso). Cargar otro
+  preset arranca una transición nueva desde donde está; tocar a mano un pad, α o el volumen la corta. En 0 salta.
 - **Espacio**: play/stop. El estado completo (modelos, sliders, presets, ajustes) se guarda continuamente en
   `localStorage`; si estaba sonando al cerrar, el audio se reanuda con la primera interacción (los browsers no
   permiten arrancar audio sin un gesto del usuario).
 - **Avanzado**: método de fase, lookahead/iteraciones de RTISI, contraste (× Xmax, default 1.45 como la demo de
-  Streamlit), glide de Z/α, tamaño del buffer y auto-ganancia (normaliza a −20 dB RMS: el nivel cambia ~60 dB
+  Streamlit), suavizado (glide) de Z/α (filtro corto en el worker contra clicks, no es la transición entre presets), tamaño del buffer y auto-ganancia (normaliza a −20 dB RMS: el nivel cambia ~60 dB
   entre modelos y α).
 
 ## ONNX Runtime Web: limitaciones

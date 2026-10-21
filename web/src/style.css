@@ -223,6 +223,17 @@ input[type="range"]::-moz-range-thumb {
 .preset.holding .preset-fill { height: 100%; transition: height var(--hold-ms) linear; }
 .preset.flash-saved { animation: flash-saved 0.6s ease-out; }
 .preset.flash-empty { animation: flash-empty 0.4s ease-out; }
+.preset.morphing::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  width: calc(var(--morph-progress, 0) * 100%);
+  background: var(--accent);
+}
+.morph-time { display: grid; grid-template-columns: auto 1fr 84px; align-items: center; gap: 10px; margin-top: 10px; font-size: 13px; color: var(--muted); }
+.morph-time output { color: var(--text); font-variant-numeric: tabular-nums; text-align: right; }
 @keyframes flash-saved { from { background: var(--accent); color: var(--bg); } }
 @keyframes flash-empty { 25%, 75% { transform: translateX(-2px); } 50% { transform: translateX(2px); } }
 

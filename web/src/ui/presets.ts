@@ -85,6 +85,14 @@ export class PresetBank {
     });
   }
 
+  /** Progreso (0–1) de la transición hacia el preset `index`; `null` la oculta. */
+  setProgress(index: number | null, progress: number) {
+    this.buttons.forEach((b, i) => {
+      b.classList.toggle("morphing", i === index);
+      if (i === index) b.style.setProperty("--morph-progress", String(progress));
+    });
+  }
+
   private flash(i: number, kind: "saved" | "empty") {
     const b = this.buttons[i];
     b.classList.remove("flash-saved", "flash-empty");

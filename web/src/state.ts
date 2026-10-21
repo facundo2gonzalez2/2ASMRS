@@ -19,6 +19,7 @@ export interface UiState {
   playing: boolean;
   presets: (Preset | null)[];
   activePreset: number | null;
+  morphSec: number; // duración de la transición al recuperar un preset (0 = salto inmediato)
   // Avanzado
   phaseMode: PhaseMode;
   rtisiLookahead: number;
@@ -40,6 +41,7 @@ export const DEFAULT_STATE: UiState = {
   playing: false,
   presets: Array(PRESET_COUNT).fill(null),
   activePreset: null,
+  morphSec: 2,
   phaseMode: "rtisi",
   rtisiLookahead: 2,
   rtisiIterations: 8,
