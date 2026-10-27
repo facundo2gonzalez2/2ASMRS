@@ -1,14 +1,12 @@
-revisar:
+Machete presets para la herramienta: EN LOCALHOST firefox
 
-Entender bien el input y output de la red neuronal en términos de espectogramas.
+1: Piano ckpt beta - Guitar ckpt beta (SONIDO PIANO)
+2: Piano ckpt beta - Guitar ckpt beta (SONIDO INTERMEDIO A=0.5)
+3: Piano ckpt beta - Guitar ckpt beta (SONIDO GUITARRA)
 
-Para la presentación:
-    3 partes
-    1 atp: musica instrumentos, antecedentes morphing, ejemplo musical (RAVE, NSynth)
-    2 apta colegas: arquitectura de la red neuronal, cómo se procesan los espectrogramas
-    3 apto jurado y director: resultados, análisis y conclusiones
+4: Piano scratch beta - Guitar scratch beta (SONIDO PIANO)
+5: Piano scratch beta - Guitar scratch beta (SONIDO INTERMEDIO A=0.5)
+6: Piano scratch beta - Guitar scratch beta (SONIDO GUITARRA)
 
-Modelo con interpolación directa en el forward, que incluso puede entrenarse con ese forward.
-Opción python backend y browser frontend, hay que synchear los threads (podemos robar a Moshi el diseño de back y front)
-Opción puro browser, con web assembly o pytorch js, ONNX
-PyTorch → ONNX → ONNX Runtime Web.
+8: Guitar ckpt beta - Voice ckpt beta (a=0)
+9: Guitar ckpt beta - Voice ckpt beta (a=1)
