@@ -1,7 +1,6 @@
 % -----------------------------------------------
-% LAMIR 2026 submission
+% LAMIR 2026 camera-ready
 % Timbre Morphing via Weight Interpolation of Specialized VAEs
-% Double-blind (anonymized) version
 % -----------------------------------------------
 
 \documentclass{article}
@@ -12,16 +11,17 @@
 \usepackage{color}
 \usepackage{subcaption}
 
-\usepackage{lineno}
-\linenumbers
+% Line numbers are only for the reviewing version (removed for camera-ready).
+% \usepackage{lineno}
+% \linenumbers
 
 % Conference metadata for LAMIR 2026 (copyright notice / proceedings string).
 \renewcommand{\conferenceyear}{2026}
 \renewcommand{\conferenceedition}{2nd}
 \renewcommand{\conferenceplace}{Belo Horizonte, Brazil}
 
-% Relax float placement so wide (double-column) figures stay within the
-% 4-page technical-content limit instead of being deferred.
+% Relax float placement so figures stay within the 4-page technical-content
+% limit instead of being deferred.
 \renewcommand{\topfraction}{0.92}
 \renewcommand{\bottomfraction}{0.85}
 \renewcommand{\textfraction}{0.06}
@@ -38,13 +38,11 @@
 
 % Note: Please do NOT use \thanks or a \footnote in any of the author markup
 
-% Anonymized submission: retain fake authors to preserve formatting.
-\threeauthors
-  {First Author} {Affiliation1 \\ {\tt author1@lamir.edu}}
-  {Second Author} {\bf Retain these fake authors in\\\bf submission to preserve the formatting}
-  {Third Author} {Affiliation3 \\ {\tt author3@lamir.edu}}
+\twoauthors
+  {Facundo Gonz\'alez Barnator} {Departamento de Computaci\'on, FCEN \\ Universidad de Buenos Aires \\ {\tt fgbarnator@dc.uba.ar}}
+  {Pablo Riera} {Departamento de Computaci\'on, FCEN \\ Universidad de Buenos Aires \\ {\tt priera@dc.uba.ar}}
 
-\def\authorname{F. Author, S. Author, and T. Author}
+\def\authorname{F. Gonz\'alez Barnator and P. Riera}
 
 \sloppy % please retain sloppy command for improved formatting
 
@@ -62,63 +60,57 @@ We propose an alternative: training variational autoencoders ($\beta$-VAE)
 specialized per timbre, and generating hybrid timbres by interpolating directly
 in the model weight space. The system is trained on STFT magnitude spectrograms
 from four sources (piano, guitar, voice and bass) and evaluated with Fr\'echet
-Audio Distance over MERT embeddings. Specializing each model by fine-tuning from
-a common base model, rather than training it from scratch, yields more gradual
-and predictable timbre transitions, especially when combined with latent-space
-regularization ($\beta$-VAE). Being built on small, lightweight models, the
-approach is potentially suitable for real-time synthesis.
+Audio Distance over MERT embeddings. A $2\times2$ ablation shows that
+fine-tuning every model from a common base model, rather than training it from
+scratch, makes the transfer towards the target monotonic, while latent-space
+regularization keeps unrelated timbres unaffected; only their combination yields
+gradual and predictable transitions. The models are small, and the
+weight-interpolated decoder runs in real time in a web browser.
 \end{abstract}
 %
 \section{Introduction}\label{sec:introduction}
 
 Timbre is the perceptual attribute that lets us distinguish two sounds of equal
-pitch and loudness produced by different sources, such as the same note played
-on a piano and on a guitar. Generating intermediate timbres between two known
-sounds---commonly called timbre \emph{morphing}---is of particular interest for
-music production and sound design: it enables exploring hybrid sonorities that
-belong to no single source and thus expands the palette beyond traditional
-timbres.
+pitch and loudness produced by different sources. Generating intermediate
+timbres between two known sounds---timbre \emph{morphing}---is of particular
+interest for music production and sound design, as it enables hybrid sonorities
+that belong to no single source.
 
-To synthesize such sonorities from familiar ones it is natural to draw on the
-generative power of deep neural networks. The most widespread approaches learn a
-single generative model over multiple timbres and interpolate within its latent
-space; however, when the model is small this strategy tends to compromise the
-fidelity of each individual timbre. This work explores an alternative: training
-a specialized model per timbre and interpolating directly in the space of their
-\emph{weights}, so as to preserve the reconstruction quality of each source
-model when generating the intermediate states.
+The most widespread deep-learning approaches learn a single generative model
+over multiple timbres and interpolate within its latent space; however, when the
+model is small this strategy tends to compromise the fidelity of each
+individual timbre (in our setting, per-instrument models reconstruct better than
+a shared model of the same size; Sec.~\ref{sec:arch}). This work explores an
+alternative: training a specialized model per timbre and interpolating directly
+in the space of their \emph{weights}, so as to preserve the reconstruction
+quality of each source model. A design principle throughout is to keep the
+models deliberately small, so that both inference and weight interpolation run
+on modest hardware and in real time, aiming at a practical tool for performance
+and production.
 
-A design principle that runs through the whole proposal is to keep the models
-deliberately small. We want them easy to train and to run, so that both
-inference and the interpolation of their weights can be carried out with modest
-hardware and, eventually, in real time. This orientation aims at a practical
-tool for musical performance and production, and it conditions the architecture
-and data decisions taken throughout.
-
-\noindent\textbf{Contributions.} (i) We propose and validate a timbre-morphing
-technique based on interpolating the \emph{weights} of per-instrument
-specialized VAEs, instead of interpolating in the latent space as is usual in
-the literature. (ii) We provide empirical evidence that two factors are
-decisive for high-quality interpolations: latent-space regularization
-($\beta$-VAE) and initializing the models from a common pre-trained checkpoint,
-with regularization being the more impactful. (iii) We show that FAD combined
-with MERT embeddings is a robust and consistent metric for timbre similarity,
-outperforming cosine similarity in stability.
+\noindent\textbf{Contributions.} (i) We propose a timbre-morphing technique that
+interpolates the \emph{weights} of per-instrument specialized VAEs, rather than
+the latent code of a single shared model, and evaluate it on four sound sources.
+(ii) Through a $2\times2$ ablation over initialization (shared checkpoint vs.\
+scratch) and latent regularization ($\beta$-VAE vs.\ AE), we provide initial
+evidence that both factors contribute to well-behaved interpolations, each to a
+different aspect. (iii) We show that the weight-interpolated decoder runs in
+real time in a web browser, and release code, models, audio examples and an
+interactive demo.\footnote{\url{https://github.com/facundo2gonzalez2/2ASMRS}}
 
 \section{Related Work}\label{sec:related}
 
-Audio morphing can be organized by \emph{where} the interpolation that yields
-the intermediate sound takes place: on the \textbf{signal}, on the
-\textbf{latent space} of a generative model, or---as we propose---on the model
-\textbf{weights}. A foundational signal-domain method \cite{slaney1996audiomorphing}
-aligns two spectrograms with dynamic time warping and cross-fades them; it is
-training-free but requires explicit alignment and was validated only on voice.
-With deep learning, morphing moved to the latent space: NSynth
-\cite{engel2017nsynth} interpolates note embeddings in a \emph{single}
-WaveNet-decoder autoencoder trained on all instruments, materialized by Magenta
-as an interactive grid \cite{magenta2017nsynthsoundmaker} close to the tool
-motivating our work; its autoregressive decoder, however, precludes real-time
-synthesis.
+Audio morphing can be organized by \emph{where} the interpolation takes place:
+on the \textbf{signal}, on the \textbf{latent space} of a generative model,
+or---as we propose---on the model \textbf{weights}. A foundational signal-domain
+method \cite{slaney1996audiomorphing} aligns two spectrograms with dynamic time
+warping and cross-fades them; it is training-free but requires explicit
+alignment and was validated only on voice. With deep learning, morphing moved to
+the latent space. NSynth \cite{engel2017nsynth} interpolates note embeddings in a
+\emph{single} WaveNet-decoder autoencoder trained on all instruments, and Magenta
+turned it into an interactive grid \cite{magenta2017nsynthsoundmaker} close to the
+tool motivating our work. Its autoregressive decoder, however, precludes
+real-time synthesis.
 
 Recent work relies on latent diffusion, with high quality at high cost. Latent
 diffusion bridges \cite{mancusi2025latentbridges} train one diffusion model per
@@ -128,260 +120,276 @@ rather than controllable intermediate states. SoundMorpher
 pretrained text-to-audio model and introduces perceptually uniform morphing, at
 the cost of a large model. For guitar tones, Chen \emph{et al.}
 \cite{chen2025guitartonemorphing} find that a lightweight autoencoder beats
-fine-tuned diffusion, and one variant interpolates network weights---the closest
-contact point with our idea, though restricted to a single instrument.
-Mix2Morph \cite{chu2026mix2morph} trains a large text-to-audio model to morph
-from noisy mixes. Overall, the literature interpolates the \emph{content} inside
-a fixed model; interpolating the \emph{parameterization} of distinct,
-lightweight per-instrument models is the space this work occupies. We also adopt
-FAD, on which the community has converged for timbre similarity.
+fine-tuned diffusion, and one variant interpolates network weights, though
+restricted to a single instrument. Mix2Morph \cite{chu2026mix2morph} trains a
+large text-to-audio model to morph from noisy mixes. Overall, the literature
+interpolates the \emph{content} inside a fixed model.
+
+Interpolating network \emph{weights} has been studied mainly outside audio.
+Averaging models fine-tuned from a shared pre-trained checkpoint improves
+accuracy at no inference cost \cite{wortsman2022soups}, and weight differences
+act as composable ``task vectors'' \cite{ilharco2023task}. This works because
+models trained from a common starting point stay in the same loss basin and are
+linearly connected \cite{frankle2020lmc,neyshabur2020transfer}, which motivates
+our \emph{Checkpoint} strategy. Closest to our setting, Murata \emph{et al.}
+\cite{murata2024attribute} merge text-to-speech models to interpolate speaker and
+emotion attributes. Spherical interpolation \cite{shoemake1985slerp} is common
+for latent vectors of generative models \cite{white2016sampling}; we apply it
+per parameter tensor.
 
 Variational autoencoders (VAE) \cite{kingma2013auto} impose a probabilistic
 structure on the latent space via the Kullback--Leibler (KL) divergence, which
 facilitates sampling and interpolation; the $\beta$-VAE \cite{higgins2017beta}
-weights this term by a scalar $\beta$ that balances reconstruction quality
-against regularization. For music sound modeling, variational models offer the
-best fidelity/regularization trade-off \cite{roche2019autoencodersmusicsoundmodeling};
-RAVE \cite{caillon2021rave} showed real-time VAE synthesis; and sparse
-autoencoders build perceptually consistent timbre spaces \cite{riera2017timbre}.
+weights this term by $\beta$. For music sound modeling, variational models offer
+the best fidelity/regularization trade-off
+\cite{roche2019autoencodersmusicsoundmodeling}; RAVE \cite{caillon2021rave}
+showed real-time VAE synthesis; and sparse autoencoders build perceptually
+consistent timbre spaces \cite{riera2017timbre}.
 
 \section{Method}\label{sec:method}
 
-\subsection{Dataset}
-We work with four instruments: piano, guitar, bass and voice. They are familiar
-and easily recognizable sources with clearly distinguishable timbres, a
-necessary condition for evaluating timbre transitions. We gathered
-approximately 87 minutes of real recordings per instrument (about 5.8 hours in
-total), keeping the amount balanced to avoid biasing training. Piano was
-collected from public-domain classical recordings; guitar from a subset of
-GuitarSet \cite{xi2019guitarset} (electric guitar, melodic and chordal
-passages); bass from jazz-standard basslines in FiloBass
-\cite{riley2023filobass}; and voice from a representative subset of VocalSet
-\cite{wilkins2018vocalset} (two male and two female voices, with melodies,
-scales and arpeggios).
+\subsection{Dataset and Preprocessing}
+We use four instruments with clearly distinguishable timbres: piano, guitar,
+bass and voice, with about 87 minutes of audio each (5.8 hours in
+total, balanced to avoid biasing training). Piano comes from 20 freely
+licensed tracks: Mozart performances by M.~Staab and B.~Kinsella (via Chosic),
+royalty-free tracks from Pixabay, and nine AI-generated solo-piano samples from
+ElevenLabs (per-track sources and licenses are listed in the repository); guitar from a subset of GuitarSet \cite{xi2019guitarset}
+(electric guitar, melodic and chordal passages); bass from jazz-standard
+basslines in FiloBass \cite{riley2023filobass}; and voice from a subset of
+VocalSet \cite{wilkins2018vocalset} (two male and two female voices, with
+melodies, scales and arpeggios).
 
-\subsection{Audio Representation and Preprocessing}
-All tracks are converted to mono and resampled to $22050$~Hz. We then apply the
-Short-Time Fourier Transform (STFT) with a $2048$-sample Hann window and a
-$512$-sample hop, keeping magnitude and phase separately. Since timbral
-information resides mainly in the spectral energy distribution, the model works
-only with the magnitude, expressed in decibels as $S = 10\log_{10}(|F|^2)$,
-where $F$ is the complex spectrum. We clip values below $-60$~dB, shift the
-energy floor to zero, and divide by the global maximum $X_{max}$ (stored with
-the model) to map magnitudes to $[0,1]$. Each spectrogram frame is thus a
-$1025$-dimensional vector ($\textit{win\_length}/2 + 1$ bins), the unit fed to
-the network; frames are processed independently, without explicitly modeling
-their temporal evolution.
+All tracks are converted to mono at $22050$~Hz and analyzed with an STFT
+($2048$-sample Hann window, $512$-sample hop). The model works only with the
+magnitude, in decibels $S = 10\log_{10}(|F|^2)$; values below $-60$~dB are
+clipped, the floor is shifted to zero and the result is divided by the global
+maximum $X_{max}$ (stored with the model), mapping magnitudes to $[0,1]$. Each
+$1025$-bin frame is an independent input to the network.
 
-\subsection{Variational Autoencoder}
-The VAE is a latent-variable generative model that assumes data are generated
-from a latent variable $z$ with prior $p(z)=\mathcal{N}(0,I)$. The decoder
-models the likelihood $p(x\mid z)$ and the encoder the approximate posterior
-$q(z\mid x)$. Training maximizes the Evidence Lower Bound (ELBO), i.e.\
-minimizes a reconstruction term plus a KL regularizer. The $\beta$-VAE
-\cite{higgins2017beta} weights the KL term by $\beta$:
+\subsection{Variational Autoencoder and Architecture}
+The encoder approximates the posterior $q(z\mid x)$ and the decoder the
+likelihood $p(x\mid z)$, with prior $p(z)=\mathcal{N}(0,I)$. The $\beta$-VAE
+\cite{higgins2017beta} minimizes
 \begin{equation}\label{eq:loss}
 \mathcal{L} = \mathcal{L}_{\mathrm{rec}} + \beta\,\mathcal{L}_{\mathrm{KL}},
 \end{equation}
-where under a Gaussian likelihood $\mathcal{L}_{\mathrm{rec}}$ reduces to the
-mean squared error (MSE) between input and reconstruction, and
-$\mathcal{L}_{\mathrm{KL}}$ is the closed-form KL divergence between $q(z\mid
-x)$ and $\mathcal{N}(0,I)$. The latent vector is obtained via the
-reparameterization trick $z = \mu + \varepsilon\odot\exp(\tfrac{1}{2}\log
-\sigma^2)$, $\varepsilon\sim\mathcal{N}(0,I)$; when $\beta=0$ the KL term
-vanishes, the model reduces to a deterministic autoencoder (AE) and we take
-$z=\mu$. Higher $\beta$ pushes the posteriors toward the prior, yielding a
-smoother, more continuous latent space at the cost of reconstruction fidelity.
+where $\mathcal{L}_{\mathrm{rec}}$ is the mean squared error (MSE) between input
+and reconstruction and $\mathcal{L}_{\mathrm{KL}}$ the closed-form KL divergence
+to the prior; $z$ is sampled with the reparameterization trick. When $\beta=0$
+the model reduces to a deterministic autoencoder (AE) and we take $z=\mu$.
+Higher $\beta$ yields a smoother latent space at the cost of fidelity.
 
-\subsection{Architecture}
-The encoder is a stack of fully connected layers that progressively reduce
-dimensionality from the $1025$ input values down to the latent space, following
-$1025\!\rightarrow\!(512,256,128,64,32,16,8)\!\rightarrow\!4$; each hidden layer
-combines a linear transformation, Batch Normalization and an ELU activation.
-The variational encoder outputs a mean vector $\mu$ and a log-variance vector
-$\log\sigma^2$. The decoder mirrors this structure, expanding $z$ back to a
-$1025$-dimensional magnitude spectrum; its final layer is linear (no
-activation) so as not to restrict the reconstructed range. We use a latent
-dimension of $4$ in most experiments, a choice justified empirically in
-Section~\ref{sec:results}.
+The encoder is a stack of fully connected layers
+$1025\!\rightarrow\!(1024,512,256,128,64,32,16,8)\!\rightarrow\!4$, each hidden
+layer combining a linear map, Batch Normalization (BN) and an ELU activation,
+with two heads for $\mu$ and $\log\sigma^2$. The decoder mirrors it back to
+$1025$ bins, with a final linear layer and BN but no activation. The full model
+has $3.5$\,M parameters, of which $1.76$\,M belong to the decoder ($\approx3.5$
+MFLOP per frame).
 
 \subsection{Training Strategy}
 We optimize Eq.~\eqref{eq:loss} with Adam (learning rate $10^{-3}$), a $95/5$
 train/validation split, batches of $256$ frames, early stopping on the
-validation loss and gradient clipping. Per-instrument models are obtained under
-two initialization strategies. \emph{Scratch}: each model is trained from a
-random initialization on its instrument only. \emph{Checkpoint}: we first train
-a \emph{base model} on all four instruments to learn a general timbral
-representation, and then fine-tune one model per instrument from that common
-starting point. Combining the two initializations with two regularization
-settings---AE ($\beta=0$) and $\beta$-VAE ($\beta=0.001$)---yields four
-configurations per instrument that we compare in the experiments.
+validation loss and gradient clipping. Per-instrument models follow two
+initialization strategies. \emph{Scratch}: each model is trained from a random
+initialization on its instrument only. \emph{Checkpoint}: we first train a
+\emph{base model} on all four instruments and then fine-tune one model per
+instrument from that common starting point. Crossing both initializations with
+two regularization settings---AE ($\beta=0$) and $\beta$-VAE
+($\beta=0.001$)---gives a $2\times2$ ablation whose baseline, Scratch-AE, uses
+neither factor.
 
 \subsection{Weight Interpolation}
-Given two models with identical architecture, a source A and a target B, and a
-coefficient $\alpha\in[0,1]$, we build an intermediate model whose parameters
-combine those of A and B, parameter by parameter. By construction $\alpha=0$
-reproduces A and $\alpha=1$ reproduces B, while intermediate values yield
-decoders that synthesize mixed timbres. We explore linear interpolation (LERP),
+Given two models with identical architecture, a source A and a target B, and
+$\alpha\in[0,1]$, we build an intermediate model by interpolating \emph{every}
+parameter tensor of A and B (encoder and decoder) independently; synthesis then
+uses only the resulting decoder. By construction $\alpha=0$ reproduces A and
+$\alpha=1$ reproduces B. We consider linear interpolation (LERP),
 $(1-\alpha)\,w_A + \alpha\,w_B$, and spherical interpolation (SLERP), which
-traverses the arc joining both weight vectors:
+traverses the arc joining both flattened tensors:
 \begin{equation}\label{eq:slerp}
 \mathrm{SLERP}(w_A,w_B,\alpha)=
 \frac{\sin\!\big((1-\alpha)\theta\big)}{\sin\theta}\,w_A +
 \frac{\sin\!\big(\alpha\theta\big)}{\sin\theta}\,w_B,
 \end{equation}
-where $\theta$ is the angle between $w_A$ and $w_B$. When the vectors are nearly
-parallel, SLERP becomes numerically unstable and we fall back to LERP.
-Non-floating-point parameters (e.g.\ Batch Normalization counters) are not
-interpolated: we take the value of the closer model according to $\alpha$.
+where $\theta$ is the angle between $w_A$ and $w_B$, computed per tensor. When
+$|\cos\theta|>0.9995$, SLERP is numerically unstable and we fall back to LERP.
+The BN running means and variances are floating-point and are interpolated like
+any other tensor. Only the integer BN step counter, which differs between models
+and is unused at inference, takes the value of the closer model.
 
 \subsection{Audio Reconstruction and Metrics}
-The decoder produces only a normalized magnitude spectrogram, which we rescale
-by $X_{max}$ and invert to linear magnitude. Since the inverse STFT also needs
-phase, we evaluate Griffin--Lim, PGHI \cite{prusa2017pghi} (a non-iterative,
-single-pass phase-gradient method) and random phase, and apply the inverse STFT
-with the analysis window. For evaluation we use: (i) reconstruction MSE on
-validation, to compare latent sizes and $\beta$ values; (ii) Fr\'echet Audio
+The decoder output is rescaled by $X_{max}$, converted to linear magnitude and
+inverted with a phase estimate: Griffin--Lim, PGHI \cite{prusa2017pghi} or random
+phase. For evaluation we use (i) validation MSE, and (ii) a Fr\'echet Audio
 Distance (FAD) \cite{gui2024adaptingfrechetaudiodistance} over embeddings from
-the pretrained MERT model \cite{li2023mert} (MERT-v1-95M), turned into a bounded
-similarity $\mathrm{sim}=\exp(-\mathrm{FAD}/k)$; (iii) cosine similarity between
-mean MERT embeddings, as an alternative baseline; and (iv) UMAP projections of
-the latent embeddings, with a multidimensional Wilcoxon--Mann--Whitney $U$
-statistic ($0.5$ = indistinguishable, $1$ = fully separated) to quantify
-cluster separation per instrument pair.
+MERT-v1-95M \cite{li2023mert}, mapped to a bounded similarity
+$\mathrm{sim}=\exp(-\mathrm{FAD}/k)$ with $k=585$ (a monotone rescaling that does
+not alter any comparison). FAD is computed at the \emph{clip level}, between the
+distributions of the 768-d MERT frame embeddings (75 frames/s) of two individual
+clips. In the interpolation experiments each clip has 48 STFT frames
+($\approx1.1$~s, $\approx83$ MERT frames), so the covariances are rank-deficient
+and are regularized with $\varepsilon I$ ($\varepsilon\le10^{-1}$). Clip-level
+FAD is known to be biased at small sample sizes \cite{chung2025kad}, so we first
+check its behaviour on a controlled case (Sec.~\ref{sec:metric}).
 
 \section{Experiments and Results}\label{sec:results}
 
-\begin{figure*}[t]
-\centering
-\includegraphics[width=0.88\textwidth]{figs/cross_transition.png}
-\caption{Cross interpolation from piano (source A) to guitar (target B) with
-voice as a witness instrument, for the four training configurations: FAD
-similarity to each of the three instruments as the interpolation coefficient
-$\alpha$ sweeps from $0$ to $1$. Only \emph{Checkpoint-$\beta$-VAE} (top left)
-exhibits the expected behaviour---piano decreasing, guitar increasing, a
-crossover near $\alpha=0.5$ and a flat witness. \emph{Checkpoint-AE} (top right)
-transfers abruptly and perturbs the witness, while the \emph{Scratch} models
-(bottom) barely change until $\alpha$ approaches $1$.}
-\label{fig:cross}
-\end{figure*}
-
-\subsection{Architecture Exploration}
-We first fix the latent dimension. Larger latent spaces reduce reconstruction
-error, but for practical manipulation a small size is desirable (e.g.\ four
-control knobs are more intuitive than thirty-two). Sweeping dimensions
-$\{2,3,4,6,8\}$ and measuring the validation reconstruction error, a dimension
-of $4$ gives a significant gain over $2$ and $3$, while $6$ or $8$ add little in
-return; the same trend
-holds for the $\beta$-VAE reconstruction error, for the KL divergence, and
-consistently across all per-instrument models and the base model. We therefore
-adopt latent dimension $4$.
-
-Next we select $\beta$. Sweeping $\beta\in\{0,10^{-5},10^{-4},10^{-3},
-10^{-2}\}$, we examine the trade-off between the mean reconstruction MSE and the
-mean KL divergence on validation. Increasing regularization to $\beta=0.01$
-excessively penalizes fidelity, whereas relaxing it to $10^{-4}$ or $10^{-5}$
-inflates the KL divergence toward the unregularized ($\beta=0$) behavior without
-a substantial reconstruction gain. The elbow of the curve sits at
-$\beta=0.001$, which we adopt; informal listening confirmed that reconstructions
-at $\beta=0.001$ are very close to those at $\beta=0$.
+\subsection{Architecture and $\beta$ Selection}\label{sec:arch}
+Sweeping latent dimensions $\{2,3,4,6,8\}$, a dimension of $4$ gives a
+significant reduction of validation error over $2$ and $3$, while $6$ or $8$ add
+little, consistently for every per-instrument model, for the base model and for
+the KL term; since four control knobs are far more manipulable than eight, we
+adopt $4$. Sweeping $\beta$ on the base model, the validation MSE ($\times10^{-3}$)
+and KL are $7.71/0.30$ for $\beta=10^{-2}$, $3.50/1.50$ for $10^{-3}$, $2.88/2.85$
+for $10^{-4}$, $2.28/4.93$ for $10^{-5}$ and $2.27/386$ for $\beta=0$.
+Regularizing more than $10^{-3}$ doubles the error, while relaxing it lowers the
+error by $18$--$35\%$ but doubles or triples the KL; we adopt $\beta=0.001$ as
+the compromise that favours a regular latent space, the property interpolation
+relies on. With the same architecture, the specialized models reconstruct their
+instrument better than the shared base model: mean MSE $2.06$ (both AE
+configurations) vs.\ $2.28$ for $\beta=0$, and $3.34$ (Checkpoint) vs.\ $3.61$ for
+$\beta=0.001$; per-configuration
+values are in Table~\ref{tab:results}. Each model is validated on its own
+split, so this comparison is indicative.
 
 \subsection{Latent-Space Analysis}
-Projecting the base-model latent embeddings to two dimensions with UMAP
-($n\_neighbors=15$) and labeling each point by instrument, the four instruments
-form clearly separated clusters under both $\beta=0$ and $\beta=0.001$, with
-pairwise Wilcoxon--Mann--Whitney $U$ values close to $1$. Separation is
-consistently slightly lower with $\beta=0.001$, consistent with regularization
-producing a smoother, more continuous latent space (e.g.\ for the bass--voice
-pair the statistic drops from $0.926$ at $\beta=0$ to $0.796$ at $\beta=0.001$).
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\columnwidth]{figs/umap_notitle.png}
+\caption{UMAP projection of the latent embeddings of the base model
+($\beta=0.001$), one point per STFT frame, colored by instrument.}
+\label{fig:umap}
+\end{figure}
+Projecting the base-model latent embeddings to 2-D with UMAP ($n\_neighbors=15$),
+the four instruments form clearly separated clusters under both $\beta=0$ and
+$\beta=0.001$, with pairwise multidimensional Wilcoxon--Mann--Whitney $U$
+statistics close to $1$ ($0.5$ = indistinguishable, $1$ = fully separated).
+Separation is consistently slightly lower with $\beta=0.001$, as expected from a
+smoother latent space (e.g.\ $0.926\rightarrow0.796$ for bass--voice;
+Fig.~\ref{fig:umap}).
 
-\subsection{Choice of Similarity Metric}
-We compare cosine similarity and FAD on a voice-to-piano interpolation, using
-the piano reconstruction as reference and two ways of feeding the decoder: a
-fixed random latent $Z$ (constant timbre) and a $Z$ obtained by encoding a real
-validation clip (a trajectory through latent space). FAD stays stable and traces
-smooth, low-variance transition curves in both cases and across configurations,
-whereas cosine similarity, although it captures the general trend, is erratic
-along latent trajectories (spurious peaks and drops, higher dispersion). Being
-more robust and consistent, FAD is used for the rest of the analysis.
+\subsection{Metric Sanity Check}\label{sec:metric}
+Before evaluating the models, we check the metric on a case whose outcome is
+known in advance and that involves no model: a waveform cross-fade
+$(1-\alpha)A + \alpha B$ between original clips of two instruments
+(piano$\rightarrow$guitar and voice$\rightarrow$piano, 20 random 1.5~s clip pairs
+each), compared against $A$, $B$ and a clip of a third, \emph{witness},
+instrument. Similarity to $A$ decreases monotonically from $1$ to $0.82$, similarity
+to $B$ mirrors it, the curves cross at $\alpha\approx0.5$, and similarity to the
+witness stays flat ($0.82\pm0.02$). Two clips of different instruments thus score
+$\approx0.82$ (FAD $\approx116$), which sets the useful range of the metric in our
+setting; the values in Fig.~\ref{fig:cross} are similarities, not raw FAD.
+Cosine similarity between mean MERT embeddings follows the same trends but is
+more dispersed on time-varying latent inputs, so we use FAD in what follows.
 
 \subsection{Weight-Interpolation Experiments}
-We first evaluate whether the timbre transfer holds regardless of the source and
-target instruments, measuring FAD similarity as a function of $\alpha$ for the
-four training configurations, averaged over many latent samples and over every
-source/target instrument pair. Timbre transfer occurs in all four, but their
-quality differs markedly. \emph{Checkpoint-$\beta$-VAE} ($\beta=0.001$) produces
-the smoothest and most sustained growth in similarity towards the target and is
-consistently the best configuration, followed by \emph{Scratch-$\beta$-VAE};
-\emph{Scratch-AE} ($\beta=0$) is the worst, failing to transition gradually and
-delaying the timbre change to extreme values of $\alpha$. This indicates that the
-regularization imposed by $\beta>0$ is the factor with the greatest impact on
-interpolation quality, while sharing a common weight initialization
-(\emph{Checkpoint}) contributes a further improvement. Both the per-source
-breakdown and the aggregation over all source/target combinations reproduce this
-ordering, so it is not an artifact of a particular instrument pair.
+Averaged over every source/target instrument pair, the similarity to the target
+grows as $\alpha$ increases in all four configurations. Checkpoint-$\beta$-VAE
+shows the smoothest growth and Scratch-AE the worst, delaying the change to
+extreme values of $\alpha$.
 
-A stricter test of the method is the cross-interpolation property: as the
-synthesized audio approaches target B it must move away from source A while
-\emph{not} acquiring traits of an unrelated \emph{witness} instrument that takes
-no part in the interpolation. Figure~\ref{fig:cross} reports this experiment with
-A = piano, B = guitar and voice as witness, tracking the FAD similarity to the
-three instruments as $\alpha$ sweeps from $0$ to $1$ under each configuration.
-The expected behaviour---similarity to A decreasing, similarity to B increasing,
-both curves crossing near $\alpha=0.5$, and the witness remaining flat---is met
-only by \emph{Checkpoint-$\beta$-VAE}. The \emph{Scratch} models depart from it
-precisely in the intermediate range that matters for morphing: with
-$\beta=0.001$ the transfer is inconsistent, and with $\beta=0$ it is practically
-nonexistent until $\alpha>0.8$, meaning the intermediate models remain locked to
-the source timbre instead of synthesizing hybrids. \emph{Checkpoint-AE} does
-achieve the transfer, but abruptly and with erratic fluctuations in the witness
-curve, indicating that its intermediate decoders drift towards timbres unrelated
-to either endpoint. These results confirm that a common initialization combined
-with a regularized latent space (\emph{Checkpoint} with $\beta=0.001$) is what
-yields a predictable, gradual and independent timbre transfer.
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figs/cross_transition.pdf}
+\caption{Cross interpolation from piano (A) to guitar (B), with voice as witness:
+FAD similarity (mean $\pm$ std over 25 latent samples) to each instrument as
+$\alpha$ sweeps from $0$ to $1$. Rows: initialization; columns: regularization.
+Only Checkpoint-$\beta$-VAE shows a steady crossover near $\alpha=0.5$ with a
+flat witness. Checkpoint-AE transfers abruptly and the witness drifts, and in the
+Scratch models similarity to B barely grows until $\alpha\approx0.9$.}
+\label{fig:cross}
+\end{figure}
 
-\subsection{Audio Examples}
-To complement the quantitative analysis with a perceptual assessment, audio
-examples of continuous timbre transitions (voice-to-piano and guitar-to-piano,
-using the \emph{Checkpoint-$\beta$-VAE} configuration) and of audio-to-audio
-morphing between real recordings are provided as supplementary material.
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{lccccc}
+\hline
+Config. & MSE & $\rho_A$ & $\rho_B$ & $\Delta_W$ & $\alpha_\times$ \\
+\hline
+Ckpt-$\beta$-VAE & 3.34 & $-.88/-.85$ & $.89/.84$ & $.03/.04$ & $.55/.59$ \\
+Ckpt-AE          & 2.08 & $-.81/-.84$ & $.95/.90$ & $.10/.08$ & $.28/.26$ \\
+Scratch-$\beta$-VAE & 3.57 & $-.67/-.74$ & $.50/.49$ & $.04/.05$ & $.48/.91$ \\
+Scratch-AE       & 2.04 & $-.79/-.58$ & $.36/.42$ & $.04/.05$ & $.76/.40$ \\
+\hline
+\end{tabular}
+\caption{Per-configuration results. MSE: mean validation reconstruction error over
+the four instruments ($\times10^{-3}$). Remaining columns, for
+piano$\rightarrow$guitar / piano$\rightarrow$voice over 25 latent samples:
+Spearman correlation between $\alpha$ and the similarity to A ($\rho_A$) and to B
+($\rho_B$); range of the similarity to the witness along $\alpha$ ($\Delta_W$);
+crossover of the mean A and B curves ($\alpha_\times$). Per-sample std of
+$\rho_B$ is $0.05$--$0.18$ for Checkpoint and $0.26$--$0.36$ for Scratch.}
+\label{tab:results}
+\end{table}
+
+A stricter test is the cross-interpolation property: as the output approaches B
+it must move away from A while \emph{not} acquiring traits of a witness
+instrument that takes no part in the interpolation. Each of 25 latent vectors
+$z\sim\mathcal{N}(0,I)$ is held constant over a clip and decoded with random
+phase by the interpolated model and, as references, by the pure A, B and witness
+models. Fig.~\ref{fig:cross} shows piano$\rightarrow$guitar with voice as witness,
+and Table~\ref{tab:results} summarizes this pair and piano$\rightarrow$voice
+(guitar as witness). Similarity at $\alpha=0$ peaks at $\approx0.91$ rather than
+$1$ because each random-phase rendering differs.
+
+The two factors of the ablation affect different aspects of the transition.
+\emph{Initialization} determines whether the transfer towards B is monotonic:
+$\rho_B$ is $0.84$--$0.95$ for Checkpoint models but only $0.36$--$0.50$ for
+Scratch models, whose similarity to B barely grows until $\alpha\approx0.9$. \emph{Regularization} matters within the Checkpoint
+models. Without it the transition happens abruptly (crossover at
+$\alpha\approx0.27$) and the witness similarity drifts three times more
+($\Delta_W=0.08$--$0.10$ vs.\ $0.03$--$0.04$), meaning the intermediate decoders
+visit timbres unrelated to either endpoint. Only Checkpoint-$\beta$-VAE combines
+a monotonic transfer, a centered crossover ($\alpha_\times=0.55$--$0.59$) and a
+flat witness, consistent with linear connectivity of models fine-tuned from a
+common checkpoint \cite{frankle2020lmc,neyshabur2020transfer}. Audio examples of
+continuous transitions for the best and worst configurations, and of
+audio-to-audio morphing between real recordings, are linked in the repository.
+
+\subsection{Real-Time Operation}
+We implemented the interpolated decoder in a browser synthesizer (ONNX Runtime
+Web, single-threaded WebAssembly), measured in Firefox on a laptop CPU (Intel
+Core i7-1255U). SLERP angles depend only on the weights and are
+precomputed once per model pair. Each frame then evaluates both endpoint decoders
+($\approx7$~MFLOP) and takes $\approx1$--$2$~ms, and real-time phase reconstruction
+(RTPGHI) takes $0.6$~ms, against a $23.2$~ms hop budget. The resulting
+end-to-end latency is $\approx70$~ms, while $\alpha$ and $z$ are modulated
+continuously.
 
 \section{Conclusions}\label{sec:conclusions}
 
-We developed and validated a technique to synthesize intermediate timbres
-between instruments by interpolating the weights of specialized VAE models.
-Unlike conventional techniques that operate within the latent space of a single
-model trained on multiple instruments, our approach trains an independent model
-per instrument and interpolates directly over its parameterization, producing
-intermediate decoders that generate hybrid timbres. A latent dimension of $4$
-offers the best trade-off between reconstruction fidelity and manipulability,
-and $\beta=0.001$ sits at the elbow of the reconstruction--KL curve. The central
-finding is that interpolation quality depends strongly on the training
-configuration: regularizing the latent space ($\beta$-VAE) and starting from a
-common base model via fine-tuning (\emph{Checkpoint-$\beta$-VAE}) consistently
-produced the smoothest and most predictable transitions, both in the FAD metric
-and in subjective listening. FAD over MERT embeddings proved a robust similarity
-metric, outperforming cosine similarity in stability.
+We presented a technique to synthesize intermediate timbres by interpolating the
+weights of per-instrument specialized VAEs, instead of interpolating the latent
+space of a single model trained on all instruments. A $2\times2$ ablation shows
+that interpolation quality depends strongly on the training configuration.
+Fine-tuning from a common base model makes the transfer monotonic, and
+latent-space regularization keeps it gradual and free of unrelated timbres.
+Their combination (Checkpoint-$\beta$-VAE) produced the most predictable
+transitions. The models are small enough for the interpolated decoder to run in
+real time in a web browser.
 
-A deliberate design choice was to work with small models and a limited amount of
-data (about 87 minutes per instrument, four instruments), so as to keep the
-models easy to train, lightweight and runnable on modest hardware---aligned with
-the goal of a future real-time synthesis tool. As a counterpart, this limits the
-attainable fidelity and generality; we view it as a conscious balance between
-quality and lightweight, real-time viability rather than an intrinsic limitation
-of the method. Future work includes real-time inference and weight
-interpolation, integration into audio-production tools (e.g.\ VST plugins),
-enlarging the dataset and instrument set, and extending the technique to a
+\noindent\textbf{Limitations.} The evaluation covers four sources and relies on a
+clip-level FAD over a single embedding model; no formal listening test was
+conducted, and similarity to the endpoints cannot distinguish a superposition of
+two sources from a fused timbre. We did not compare against large latent-space
+morphing systems, whose scale and control paradigm differ. Future work includes
+a perceptual study, KAD \cite{chung2025kad} and alternative embeddings, a
+latent-interpolation baseline on the shared base model, more instruments, and a
 triple interpolation controlled by two parameters.
 
 \section{Ethics Statement}
 
 This work uses publicly available datasets (GuitarSet, FiloBass, VocalSet) under
-their respective licenses, together with public-domain piano recordings, and
-does not involve the collection of personal or private data. The proposed
-generative technique is intended as a creative tool for music production and
-performance; as with any audio-synthesis method, care should be taken to respect
-the rights of performers whose recordings are used to train the models.
+their respective licenses, together with freely licensed piano tracks (some of
+them AI-generated; see the repository for credits), and does
+not involve the collection of personal or private data. The proposed generative
+technique is intended as a creative tool for music production and performance;
+as with any audio-synthesis method, care should be taken to respect the rights
+of performers whose recordings are used to train the models.
 
 % For bibtex users:
 \bibliography{references}

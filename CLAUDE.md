@@ -92,6 +92,8 @@ model/
 │   ├── sample_z_init.py       # Compute Z init stats (mean/std) per instrument for app.py
 │   ├── export_web_models.py   # Export checkpoints + manifest for the browser synth (web/public/models/)
 │   ├── fad_similarity_plot.py # FAD similarity visualization
+│   ├── plot_cross_transition.py          # LAMIR paper Fig. (vector PDF, column width) from interpolate.py summary CSV
+│   ├── summarize_interpolation_metrics.py # LAMIR paper Table 1 from TB logs + interpolate.py raw CSV
 │   ├── process_dataset.py     # Dataset preprocessing
 │   └── stero_to_mono.py       # Stereo-to-mono audio conversion
 ├── imgs/                      # Experiment result plots
